@@ -1,0 +1,32 @@
+{
+  "root": true,
+  "env": {
+    "browser": true,
+    "es2021": true,
+    "node": true
+  },
+  "extends": [
+    "eslint:recommended",
+    "plugin:react/recommended"
+  ],
+  "parserOptions": {
+    "ecmaVersion": "latest",
+    "sourceType": "module",
+    "ecmaFeatures": {
+      "jsx": true
+    }
+  },
+  "settings": {
+    "react": {
+      "version": "detect"
+    }
+  },
+  "plugins": ["react-refresh"],
+  "rules": {
+    "no-unused-vars": ["warn", { "argsIgnorePattern": "^(res|err|_|_.*)$", "varsIgnorePattern": "^(res|err|_|_.*)$" }],
+    "no-empty": ["warn", { "allowEmptyCatch": true }],
+    "react-refresh/only-export-components": "off",
+    "react-hooks/exhaustive-deps": "warn"
+  },
+  "ignorePatterns": ["dist/", "build/", "node_modules/"]
+}
