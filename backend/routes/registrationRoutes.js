@@ -25,7 +25,7 @@ import {
   getOrganizerRegistrations
 } from '../controllers/registrationController.js';
 import { protect, authorize } from '../middleware/auth.js';
-import { upload, uploadToS3 } from '../middleware/upload.js';
+import { upload, uploadToStorage } from '../middleware/upload.js';
 
 const router = express.Router();
 
@@ -45,7 +45,7 @@ router.get('/:id', protect, getRegistration);
 router.get('/:id/calendar', protect, authorize('participant'), exportToCalendar);
 router.get('/:id/calendar-links', protect, authorize('participant'), getCalendarLinks);
 router.put('/:id/cancel', protect, authorize('participant'), cancelRegistration);
-router.put('/:id/payment-proof', protect, authorize('participant'), upload.single('paymentProof'), uploadToS3, uploadPaymentProof);
+router.put('/:id/payment-proof', protect, authorize('participant'), upload.single('paymentProof'), uploadToStorage, uploadPaymentProof);
 
 // Organizer routes
 router.put('/:id/attend', protect, authorize('organizer', 'admin'), markAttendance);

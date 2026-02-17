@@ -731,10 +731,11 @@ export const uploadPaymentProof = asyncHandler(async (req, res, next) => {
     throw new AppError('Please upload a payment proof image', 400);
   }
 
-  // If S3 upload middleware set `req.file.s3Url`, use that full URL. Otherwise
-  // fallback to local disk path which is served at /uploads
+  // Persist storage URL/identifier. Priority: S3 URL -> GridFS id -> local disk path
   if (req.file.s3Url) {
     registration.paymentProof = req.file.s3Url;
+  } else if (req.file.gridFsId) {
+    registration.paymentProof = `/uploads/gridfs/${req.file.gridFsId}`;
   } else {
     registration.paymentProof = `/uploads/${req.file.filename}`;
   }

@@ -49,6 +49,7 @@ import {
   discussionRoutes
 } from './routes/index.js';
 import teamRoutes from './routes/teamRoutes.js';
+import gridfsService from './services/gridfs.js';
 
 // Middleware
 import { notFound, errorHandler } from './middleware/errorHandler.js';
@@ -101,6 +102,15 @@ app.use(express.urlencoded({ extended: true }));
  * - If not found and S3 is configured, redirect to the S3 object URL
  */
 const uploadsDir = path.join(__dirname, 'uploads');
+
+// Serve gridfs files at /uploads/gridfs/:id
+app.get('/uploads/gridfs/:id', (req, res) => {
+  const stream = gridfsService.getGridFSReadStream(req.params.id);
+  if (!stream) return res.status(404).json({ success: false, message: 'Not found' });
+  stream.on('error', () => res.status(404).json({ success: false, message: 'Not found' }));
+  stream.pipe(res);
+});
+
 app.use('/uploads', (req, res, next) => {
   const filePath = path.join(uploadsDir, req.path);
   if (fs.existsSync(filePath)) {

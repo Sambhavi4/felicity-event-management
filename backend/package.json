@@ -8,7 +8,8 @@
     "dev": "nodemon server.js",
     "seed": "node config/seedAdmin.js",
     "populate": "node scripts/populateDemoData.js",
-    "migrate-uploads": "node scripts/migrateUploadsToS3.js"
+    "migrate-uploads": "node scripts/migrateUploadsToS3.js",
+    "migrate-gridfs": "node scripts/migrateUploadsToGridFS.js"
   },
   "keywords": [],
   "author": "",

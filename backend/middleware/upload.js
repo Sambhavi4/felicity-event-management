@@ -9,6 +9,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
 import { uploadBufferToS3 } from '../services/s3.js';
+import { uploadBufferToGridFS } from '../services/gridfs.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -44,29 +45,39 @@ const fileFilter = (req, file, cb) => {
 };
 
 const useS3 = !!process.env.S3_BUCKET;
+const useGridFS = !!process.env.USE_GRIDFS || (!useS3 && process.env.NODE_ENV === 'production');
 
 export const upload = multer({
-  storage: useS3 ? memory : localDiskStorage,
+  storage: (useS3 || useGridFS) ? memory : localDiskStorage,
   fileFilter,
   limits: { fileSize: 5 * 1024 * 1024 } // 5MB max
 });
 
-// Middleware to upload the received file buffer to S3 when configured.
-export const uploadToS3 = async (req, res, next) => {
-  if (!useS3) return next();
+// Middleware to upload the received file buffer to S3 or GridFS when configured.
+export const uploadToStorage = async (req, res, next) => {
   if (!req.file || !req.file.buffer) return next();
 
   try {
-    const originalName = req.file.originalname || 'file';
-    const key = `uploads/${Date.now()}-${Math.round(Math.random() * 1e9)}${path.extname(originalName)}`;
-    const result = await uploadBufferToS3(req.file.buffer, key, req.file.mimetype);
-    // Attach s3Url so downstream handlers can persist it
-    req.file.s3Url = result;
-    // Also set filename for compatibility
-    req.file.filename = path.basename(key);
+    if (useS3) {
+      const originalName = req.file.originalname || 'file';
+      const key = `uploads/${Date.now()}-${Math.round(Math.random() * 1e9)}${path.extname(originalName)}`;
+      const result = await uploadBufferToS3(req.file.buffer, key, req.file.mimetype);
+      req.file.s3Url = result;
+      req.file.filename = path.basename(key);
+      return next();
+    }
+
+    if (useGridFS) {
+      const originalName = req.file.originalname || 'file';
+      const gridId = await uploadBufferToGridFS(req.file.buffer, `${Date.now()}-${Math.round(Math.random() * 1e9)}${path.extname(originalName)}`, req.file.mimetype);
+      req.file.gridFsId = gridId;
+      req.file.filename = path.basename(originalName);
+      return next();
+    }
+
     return next();
   } catch (err) {
-    console.error('S3 upload failed:', err);
+    console.error('Storage upload failed:', err);
     return next(err);
   }
 };
