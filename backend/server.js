@@ -25,6 +25,7 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 
 // Get directory name for ES modules
@@ -95,10 +96,27 @@ app.use(express.json({ limit: '10mb' })); // Limit for QR code data
 app.use(express.urlencoded({ extended: true }));
 
 /**
- * Static Files
- * For serving uploaded files (payment proofs, etc.)
+ * Uploaded files handling
+ * - First try local disk (for dev)
+ * - If not found and S3 is configured, redirect to the S3 object URL
  */
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+const uploadsDir = path.join(__dirname, 'uploads');
+app.use('/uploads', (req, res, next) => {
+  const filePath = path.join(uploadsDir, req.path);
+  if (fs.existsSync(filePath)) {
+    return res.sendFile(filePath);
+  }
+  // If S3 is configured, redirect to public S3 URL
+  if (process.env.S3_BUCKET) {
+    const region = process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION || 'us-east-1';
+    const bucket = process.env.S3_BUCKET;
+    const regionPart = region === 'us-east-1' ? '' : `-${region}`;
+    const s3Url = `https://${bucket}.s3${regionPart}.amazonaws.com${req.path}`;
+    return res.redirect(s3Url);
+  }
+  // Not found locally and no S3 configured
+  res.status(404).json({ success: false, message: `Not found - ${req.originalUrl}` });
+});
 
 // ============ API ROUTES ============
 
