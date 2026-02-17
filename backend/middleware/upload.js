@@ -8,7 +8,6 @@ import multer from 'multer';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
-import { uploadBufferToS3 } from '../services/s3.js';
 import { uploadBufferToGridFS } from '../services/gridfs.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -44,11 +43,10 @@ const fileFilter = (req, file, cb) => {
   }
 };
 
-const useS3 = !!process.env.S3_BUCKET;
-const useGridFS = !!process.env.USE_GRIDFS || (!useS3 && process.env.NODE_ENV === 'production');
+const useGridFS = !!process.env.USE_GRIDFS || (process.env.NODE_ENV === 'production');
 
 export const upload = multer({
-  storage: (useS3 || useGridFS) ? memory : localDiskStorage,
+  storage: useGridFS ? memory : localDiskStorage,
   fileFilter,
   limits: { fileSize: 5 * 1024 * 1024 } // 5MB max
 });
@@ -58,15 +56,6 @@ export const uploadToStorage = async (req, res, next) => {
   if (!req.file || !req.file.buffer) return next();
 
   try {
-    if (useS3) {
-      const originalName = req.file.originalname || 'file';
-      const key = `uploads/${Date.now()}-${Math.round(Math.random() * 1e9)}${path.extname(originalName)}`;
-      const result = await uploadBufferToS3(req.file.buffer, key, req.file.mimetype);
-      req.file.s3Url = result;
-      req.file.filename = path.basename(key);
-      return next();
-    }
-
     if (useGridFS) {
       const originalName = req.file.originalname || 'file';
       const gridId = await uploadBufferToGridFS(req.file.buffer, `${Date.now()}-${Math.round(Math.random() * 1e9)}${path.extname(originalName)}`, req.file.mimetype);

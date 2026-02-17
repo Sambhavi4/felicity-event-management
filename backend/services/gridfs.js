@@ -15,10 +15,12 @@ export const uploadBufferToGridFS = async (buffer, filename, contentType = 'appl
   const b = init();
   return new Promise((resolve, reject) => {
     const uploadStream = b.openUploadStream(filename, { contentType });
-    uploadStream.end(buffer, (err, file) => {
-      if (err) return reject(err);
-      resolve(String(file._id));
+    uploadStream.on('error', (err) => reject(err));
+    uploadStream.on('finish', () => {
+      // uploadStream.id contains the file id assigned by GridFS
+      resolve(String(uploadStream.id));
     });
+    uploadStream.end(buffer);
   });
 };
 
