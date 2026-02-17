@@ -3,7 +3,7 @@ import fuzzy from '../utils/fuzzy';
 import { useParams } from 'react-router-dom';
 import registrationService from '../services/registrationService';
 import eventService from '../services/eventService';
-import api from '../services/api';
+import api, { getUploadUrl } from '../services/api';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import toast from 'react-hot-toast';
 
@@ -320,10 +320,10 @@ const EventRegistrationsPage = () => {
                       <td>
                         {reg.paymentProof ? (
                           <div>
-                            <a href={reg.paymentProof} target="_blank" rel="noreferrer" className="btn-link" style={{fontSize:12}}>View Full</a>
+                            <a href={getUploadUrl(reg.paymentProof)} target="_blank" rel="noreferrer" className="btn-link" style={{fontSize:12}}>View Full</a>
                             <div style={{ marginTop: 4 }}>
-                              <img src={reg.paymentProof} alt="proof" style={{ maxWidth: 100, maxHeight: 70, objectFit: 'cover', borderRadius: 4, border: '1px solid var(--border-color)', cursor: 'pointer' }}
-                                onClick={() => window.open(reg.paymentProof, '_blank')} />
+                              <img src={getUploadUrl(reg.paymentProof)} alt="proof" style={{ maxWidth: 100, maxHeight: 70, objectFit: 'cover', borderRadius: 4, border: '1px solid var(--border-color)', cursor: 'pointer' }}
+                                onClick={() => window.open(getUploadUrl(reg.paymentProof), '_blank')} />
                             </div>
                           </div>
                         ) : (

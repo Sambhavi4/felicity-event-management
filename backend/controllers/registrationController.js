@@ -185,15 +185,17 @@ export const registerForEvent = asyncHandler(async (req, res, next) => {
   // Push recent registration timestamp for trending (non-blocking)
   Event.updateOne({ _id: eventId }, { $push: { recentRegistrations: { $each: [{ timestamp: new Date() }], $slice: -200 } } }).exec();
   
-  // Send confirmation email
-  try {
-    // Enqueue registration confirmation email
-    const html = `<p>Hi <strong>${participant.firstName}</strong>,</p><p>Your registration for <strong>${event.name}</strong> is confirmed. Ticket ID: <strong>${registration.ticketId}</strong></p>`;
-    await (await import('../services/emailService.js')).default.enqueue({ to: participant.email, subject: `🎫 Registration Confirmed - ${event.name}`, html });
-    registration.confirmationEmailSent = true;
-    await registration.save();
-  } catch (emailError) {
-    console.error('Failed to enqueue confirmation email:', emailError);
+  // Send confirmation email ONLY for free events (paid events already got a
+  // "Payment Required" email above; the real confirmation is sent on approval)
+  if (!event.registrationFee || event.registrationFee <= 0) {
+    try {
+      const html = `<p>Hi <strong>${participant.firstName}</strong>,</p><p>Your registration for <strong>${event.name}</strong> is confirmed. Ticket ID: <strong>${registration.ticketId}</strong></p>`;
+      await (await import('../services/emailService.js')).default.enqueue({ to: participant.email, subject: `🎫 Registration Confirmed - ${event.name}`, html });
+      registration.confirmationEmailSent = true;
+      await registration.save();
+    } catch (emailError) {
+      console.error('Failed to enqueue confirmation email:', emailError);
+    }
   }
   
   // Populate for response
@@ -729,7 +731,13 @@ export const uploadPaymentProof = asyncHandler(async (req, res, next) => {
     throw new AppError('Please upload a payment proof image', 400);
   }
 
-  registration.paymentProof = `/uploads/${req.file.filename}`;
+  // If S3 upload middleware set `req.file.s3Url`, use that full URL. Otherwise
+  // fallback to local disk path which is served at /uploads
+  if (req.file.s3Url) {
+    registration.paymentProof = req.file.s3Url;
+  } else {
+    registration.paymentProof = `/uploads/${req.file.filename}`;
+  }
   registration.paymentStatus = 'pending';
   registration.status = 'pending';
   await registration.save();
@@ -802,20 +810,57 @@ export const paymentAction = asyncHandler(async (req, res, next) => {
     registration.status = 'confirmed';
 
     // Generate QR code now that payment is approved
-    const qrCodeData = await generateTicketQR(registration, registration.event, registration.participant);
-    registration.qrCodeData = qrCodeData;
-
-    // Send confirmation email
     try {
-        // Use structured template which includes QR
-        if (registration.registrationType === 'merchandise') {
-          await sendMerchandiseEmail(registration.participant, registration.event, registration);
-        } else {
-          await sendRegistrationEmail(registration.participant, registration.event, registration);
-        }
+      const qrCodeData = await generateTicketQR(registration, registration.event, registration.participant);
+      registration.qrCodeData = qrCodeData;
+    } catch (qrErr) {
+      console.error('Failed to generate QR code on approval:', qrErr);
+      // Continue with approval even if QR fails — participant can still use ticket ID
+    }
+
+    // Send confirmation email via queue (non-blocking) so approval response is not delayed
+    try {
+      const participant = registration.participant;
+      const event = registration.event;
+      let html;
+      if (registration.registrationType === 'merchandise') {
+        html = `
+          <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto">
+            <div style="background:linear-gradient(135deg,#11998e,#38ef7d);color:#fff;padding:30px;text-align:center;border-radius:10px 10px 0 0">
+              <h1>🛍️ Order Confirmed!</h1><p>Felicity Merchandise</p>
+            </div>
+            <div style="background:#f9f9f9;padding:30px;border-radius:0 0 10px 10px">
+              <p>Hi <strong>${participant.firstName}</strong>,</p>
+              <p>Your payment has been approved and your merchandise order <strong>${registration.ticketId}</strong> for <strong>${event.name}</strong> is confirmed!</p>
+              ${registration.qrCodeData ? `<div style="text-align:center;margin:20px 0"><img src="${registration.qrCodeData}" alt="QR Code" style="max-width:200px" /><p style="font-size:12px;color:#666">Show this QR code for pickup</p></div>` : ''}
+            </div>
+          </div>
+        `;
+      } else {
+        html = `
+          <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto">
+            <div style="background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;padding:30px;text-align:center;border-radius:10px 10px 0 0">
+              <h1>🎉 Registration Confirmed!</h1><p>Felicity 2026</p>
+            </div>
+            <div style="background:#f9f9f9;padding:30px;border-radius:0 0 10px 10px">
+              <p>Hi <strong>${participant.firstName}</strong>,</p>
+              <p>Your payment has been approved! Your registration for <strong>${event.name}</strong> is now confirmed.</p>
+              <div style="background:#fff;border:2px dashed #667eea;padding:20px;margin:20px 0;border-radius:10px;text-align:center">
+                <p style="font-size:24px;font-weight:bold;color:#667eea">🎫 ${registration.ticketId}</p>
+              </div>
+              ${registration.qrCodeData ? `<div style="text-align:center;margin:20px 0"><img src="${registration.qrCodeData}" alt="QR Code" style="max-width:200px" /><p style="font-size:12px;color:#666">Show this QR code at the venue</p></div>` : ''}
+            </div>
+          </div>
+        `;
+      }
+      await (await import('../services/emailService.js')).default.enqueue({
+        to: participant.email,
+        subject: `✅ Payment Approved — ${event.name}`,
+        html
+      });
       registration.confirmationEmailSent = true;
     } catch (e) {
-      console.error('Failed to send confirmation email:', e);
+      console.error('Failed to enqueue confirmation email:', e);
     }
     // Mark sold count if variants exist
     try {

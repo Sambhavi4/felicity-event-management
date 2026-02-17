@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import registrationService from '../services/registrationService';
-import api from '../services/api';
+import api, { getUploadUrl } from '../services/api';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import toast from 'react-hot-toast';
 
@@ -128,8 +128,8 @@ const TicketPage = () => {
               {reg.paymentProof && (
                 <div style={{ marginBottom: 12 }}>
                   <p style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>📎 Uploaded Payment Proof:</p>
-                  <img src={reg.paymentProof} alt="Payment proof" style={{ maxWidth: 200, maxHeight: 150, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border-color)', cursor: 'pointer' }}
-                    onClick={() => window.open(reg.paymentProof, '_blank')} />
+                  <img src={getUploadUrl(reg.paymentProof)} alt="Payment proof" style={{ maxWidth: 200, maxHeight: 150, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border-color)', cursor: 'pointer' }}
+                    onClick={() => window.open(getUploadUrl(reg.paymentProof), '_blank')} />
                 </div>
               )}
 

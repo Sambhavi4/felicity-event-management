@@ -1,1 +1,8 @@
+# Proxy API requests to backend
+/api/*  https://felicity-backend-api.onrender.com/api/:splat  200
+
+# Proxy /uploads to backend for payment proofs etc.
+/uploads/*  https://felicity-backend-api.onrender.com/uploads/:splat  200
+
+# SPA catch-all
 /*    /index.html   200
