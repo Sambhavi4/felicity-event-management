@@ -49,6 +49,7 @@ import {
   discussionRoutes
 } from './routes/index.js';
 import teamRoutes from './routes/teamRoutes.js';
+import debugRoutes from './routes/debugRoutes.js';
 import gridfsService from './services/gridfs.js';
 
 // Middleware
@@ -148,6 +149,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/feedback', feedbackRoutes);
 app.use('/api/discussions', discussionRoutes);
 app.use('/api/teams', teamRoutes);
+app.use('/api/debug', debugRoutes);
 
 // ============ ERROR HANDLING ============
 
