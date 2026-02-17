@@ -6,10 +6,17 @@ const enqueue = async ({ to, subject, html }) => {
   return q;
 };
 
+const MAX_ATTEMPTS = 3;
+
 const processPending = async () => {
-  // Fetch few pending emails
-  const pending = await EmailQueue.find({ status: 'pending' }).limit(10);
-  for (const item of pending) {
+  // Fetch pending emails AND failed emails that haven't exhausted retries
+  const items = await EmailQueue.find({
+    $or: [
+      { status: 'pending' },
+      { status: 'failed', attempts: { $lt: MAX_ATTEMPTS } }
+    ]
+  }).limit(10);
+  for (const item of items) {
     try {
       item.status = 'processing';
       item.attempts += 1;
@@ -23,8 +30,8 @@ const processPending = async () => {
       await item.save();
       console.log('Email sent from queue to', item.to, 'result:', result?.previewUrl || result?.info?.messageId || 'ok');
     } catch (e) {
-      console.error('Queued email failed:', e.message || e);
-      item.status = 'failed';
+      console.error('Queued email failed (attempt', item.attempts, '/', MAX_ATTEMPTS, '):', e.message || e);
+      item.status = item.attempts >= MAX_ATTEMPTS ? 'failed' : 'pending';
       item.lastError = String(e.message || e);
       await item.save();
     }

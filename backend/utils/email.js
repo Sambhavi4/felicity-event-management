@@ -102,20 +102,28 @@ const sendEmail = async (options) => {
       usingTestAccount = true;
       testAccountInfo = testAccount;
     } else {
-      // Create and verify transporter once and reuse it (reduces auth flakiness)
+      // Create transporter from env and cache it for reuse
       transporter = createTransporterFromEnv();
-      try {
-        await transporter.verify();
+      if (process.env.NODE_ENV === 'production') {
+        // In production, skip verify() — just cache and try sending directly.
+        // verify() can fail transiently (network hiccup, rate limit) even when
+        // credentials are correct, causing all subsequent emails to miss the cache.
         globalTransporter = transporter;
         usingTestAccount = false;
         testAccountInfo = null;
-      } catch (verifyErr) {
-        console.error('❌ SMTP verification failed:', verifyErr.message);
-        if (verifyErr.code === 'EAUTH' || verifyErr.responseCode === 535 || /Invalid login/i.test(String(verifyErr.message))) {
-          console.error('🔒 Gmail App Password required. See https://support.google.com/accounts/answer/185833');
-        }
-        // In development, fall back to Ethereal so emails are still captured
-        if (process.env.NODE_ENV !== 'production') {
+        console.log('📧 SMTP transporter cached (production, verify skipped)');
+      } else {
+        try {
+          await transporter.verify();
+          globalTransporter = transporter;
+          usingTestAccount = false;
+          testAccountInfo = null;
+        } catch (verifyErr) {
+          console.error('❌ SMTP verification failed:', verifyErr.message);
+          if (verifyErr.code === 'EAUTH' || verifyErr.responseCode === 535 || /Invalid login/i.test(String(verifyErr.message))) {
+            console.error('🔒 Gmail App Password required. See https://support.google.com/accounts/answer/185833');
+          }
+          // In development, fall back to Ethereal so emails are still captured
           const fallback = await createEtherealFallback();
           if (fallback) {
             transporter = fallback.transporter;
@@ -129,18 +137,17 @@ const sendEmail = async (options) => {
             return null;
           }
         }
-        // In production, still try sending — let it fail loudly (do not overwrite globalTransporter)
       }
     }
   }
 
   // Default no-reply domain chosen for the project. Override the display-from with EMAIL_FROM.
-  const DEFAULT_NO_REPLY = 'no-reply@felicity.iiit.ac.in';
+  const DEFAULT_NO_REPLY = process.env.EMAIL_USER || 'no-reply@felicity.iiit.ac.in';
   // Use an explicit display-from (no-reply) so recipients see a consistent sender. The SMTP
   // envelope (mailOptions.envelope.from) below still uses the auth user so delivery/auth works.
   const displayFrom = process.env.EMAIL_FROM || `"Felicity" <${process.env.EMAIL_FROM_ADDRESS || DEFAULT_NO_REPLY}>`;
-  // reply-to should also default to no-reply unless overridden
-  const replyToAddress = process.env.EMAIL_REPLY_TO || DEFAULT_NO_REPLY;
+  // reply-to should default to the EMAIL_USER so replies actually work
+  const replyToAddress = process.env.EMAIL_REPLY_TO || process.env.EMAIL_USER || DEFAULT_NO_REPLY;
 
   const mailOptions = {
     from: displayFrom,
@@ -184,6 +191,10 @@ const sendEmail = async (options) => {
     console.error('❌ Email error:', error);
     if (error && (error.code === 'EAUTH' || error.responseCode === 535 || /Invalid login/i.test(String(error.message)))) {
       console.error('🔒 SMTP authentication failed. If you are using Gmail, ensure you have created an App Password (recommended) or enabled appropriate SMTP access for this account. See: https://support.google.com/mail/?p=BadCredentials');
+      // Reset cached transporter so next attempt creates a fresh connection
+      globalTransporter = null;
+      usingTestAccount = false;
+      testAccountInfo = null;
     }
     throw error;
   }
