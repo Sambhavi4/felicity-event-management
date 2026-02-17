@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: felicity-backend
+    name: felicity-backend-api
     runtime: node
     rootDir: backend
     buildCommand: npm install
