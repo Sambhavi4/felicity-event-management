@@ -1,5 +1,7 @@
 import express from 'express';
 import Registration from '../models/Registration.js';
+import fs from 'fs';
+import { execSync } from 'child_process';
 
 const router = express.Router();
 
@@ -12,6 +14,23 @@ router.get('/registrations-sample', async (req, res) => {
   } catch (e) {
     console.error('Debug endpoint error', e);
     res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+router.get('/version', (req, res) => {
+  try {
+    let commit = process.env.COMMIT_SHA || null;
+    try {
+      if (!commit && fs.existsSync('.git')) {
+        commit = execSync('git rev-parse --short HEAD').toString().trim();
+      }
+    } catch (e) {
+      // ignore
+    }
+    const pkg = JSON.parse(fs.readFileSync('./package.json', 'utf8'));
+    res.json({ success: true, version: pkg.version || null, commit });
+  } catch (e) {
+    res.status(500).json({ success: false, message: 'version info unavailable' });
   }
 });
 
