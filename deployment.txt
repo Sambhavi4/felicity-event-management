@@ -4,8 +4,8 @@
 # DEPLOYMENT URLs (to be filled after deployment)
 # ================================================
 
-Frontend URL: https://felicity-frontend.vercel.app
-Backend URL: https://felicity-backend.onrender.com
+Frontend URL: https://felicity-event-mgmt.netlify.app
+Backend URL: https://felicity-backend-api.onrender.com
 
 # ===================================================
 # DEPLOYMENT INSTRUCTIONS
