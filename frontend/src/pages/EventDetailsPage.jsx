@@ -131,7 +131,10 @@ const EventDetailsPage = () => {
     try {
       const res = await registrationService.getEventRegistrations(id, { limit: 200 });
       setParticipants(res.registrations || []);
-    } catch { /* ignore */ } finally { setParticipantsLoading(false); }
+    } catch (err) {
+      const msg = err.response?.data?.message || err.message || 'Failed to load participants';
+      toast.error(msg);
+    } finally { setParticipantsLoading(false); }
   };
 
   const handleRegister = async () => {

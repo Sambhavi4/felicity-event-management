@@ -34,7 +34,7 @@ const EditEventPage = () => {
         maxTeamSize: ev.maxTeamSize || 4,
       });
       setCustomFields(ev.customFields || []);
-      setVariants(ev.variants?.map(v => ({ ...v, _id: v._id || crypto.randomUUID() })) || []);
+        setVariants(ev.variants || []);
     }).catch(() => {
       toast.error('Event not found');
       navigate('/dashboard');
@@ -60,8 +60,8 @@ const EditEventPage = () => {
     return arr.map((fi, i) => ({ ...fi, order: i }));
   });
 
-  // Variant builder
-  const addVariant = () => setVariants(v => [...v, { _id: crypto.randomUUID(), name: '', size: '', color: '', price: 0, stock: 0, sold: 0 }]);
+  // Variant builder — do NOT put _id here; MongoDB will assign it on the server
+  const addVariant = () => setVariants(v => [...v, { name: '', size: '', color: '', price: 0, stock: 0, sold: 0 }]);
   const updateVariant = (idx, key, val) => setVariants(v => v.map((vi, i) => i === idx ? { ...vi, [key]: val } : vi));
   const removeVariant = (idx) => setVariants(v => v.filter((_, i) => i !== idx));
 
@@ -87,7 +87,11 @@ const EditEventPage = () => {
         registrationLimit: form.registrationLimit ? Number(form.registrationLimit) : undefined,
         registrationFee: Number(form.registrationFee) || 0,
         customFields: event?.eventType !== 'merchandise' ? customFields : undefined,
-        variants: event?.eventType === 'merchandise' ? variants : undefined,
+        // Strip _id from variants — UUIDs break Mongoose ObjectId casting.
+        // The server replaces the entire variants array so old _ids are irrelevant.
+        variants: event?.eventType === 'merchandise'
+          ? variants.map(({ _id, ...rest }) => rest)
+          : undefined,
       };
       await eventService.updateEvent(id, data);
       toast.success('Event updated');
@@ -265,7 +269,7 @@ const EditEventPage = () => {
           ) : (
             <>
               {variants.map((v, idx) => (
-                <div key={v._id} style={{ padding: 12, border: '1px solid var(--border-color)', borderRadius: 'var(--radius)', marginBottom: 8 }}>
+                <div key={v._id || idx} style={{ padding: 12, border: '1px solid var(--border-color)', borderRadius: 'var(--radius)', marginBottom: 8 }}>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 80px 80px 80px auto', gap: 8, alignItems: 'end' }}>
                     <div className="form-group" style={{ margin: 0 }}>
                       <label style={{ fontSize: 12 }}>Name</label>
