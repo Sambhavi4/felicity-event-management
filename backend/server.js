@@ -46,7 +46,8 @@ import {
   userRoutes,
   adminRoutes,
   feedbackRoutes,
-  discussionRoutes
+  discussionRoutes,
+  notificationRoutes
 } from './routes/index.js';
 import teamRoutes from './routes/teamRoutes.js';
 import debugRoutes from './routes/debugRoutes.js';
@@ -148,6 +149,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/feedback', feedbackRoutes);
 app.use('/api/discussions', discussionRoutes);
+app.use('/api/notifications', notificationRoutes);
 app.use('/api/teams', teamRoutes);
 app.use('/api/debug', debugRoutes);
 

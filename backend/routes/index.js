@@ -11,6 +11,7 @@ import userRoutes from './userRoutes.js';
 import adminRoutes from './adminRoutes.js';
 import feedbackRoutes from './feedbackRoutes.js';
 import discussionRoutes from './discussionRoutes.js';
+import notificationRoutes from './notificationRoutes.js';
 
 export {
   authRoutes,
@@ -19,5 +20,6 @@ export {
   userRoutes,
   adminRoutes,
   feedbackRoutes,
-  discussionRoutes
+  discussionRoutes,
+  notificationRoutes
 };

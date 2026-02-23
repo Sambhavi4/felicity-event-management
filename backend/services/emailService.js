@@ -1,8 +1,19 @@
 import EmailQueue from '../models/EmailQueue.js';
 import sendEmail from '../utils/email.js';
 
-const enqueue = async ({ to, subject, html }) => {
-  const q = await EmailQueue.create({ to, subject, html, status: 'pending' });
+const enqueue = async ({ to, subject, html, attachments }) => {
+  const data = { to, subject, html, status: 'pending' };
+  if (attachments && attachments.length > 0) {
+    // Serialize Buffer content to base64 for MongoDB storage
+    data.attachments = attachments.map(a => ({
+      filename: a.filename,
+      content: Buffer.isBuffer(a.content) ? a.content.toString('base64') : a.content,
+      contentType: a.contentType,
+      cid: a.cid,
+      encoding: 'base64'
+    }));
+  }
+  const q = await EmailQueue.create(data);
   return q;
 };
 
@@ -22,7 +33,15 @@ const processPending = async () => {
       item.attempts += 1;
       await item.save();
 
-      const result = await sendEmail({ to: item.to, subject: item.subject, html: item.html });
+      // Rebuild attachment buffers from stored base64
+      const attachments = (item.attachments || []).map(a => ({
+        filename: a.filename,
+        content: Buffer.from(a.content, 'base64'),
+        contentType: a.contentType,
+        cid: a.cid
+      }));
+
+      const result = await sendEmail({ to: item.to, subject: item.subject, html: item.html, attachments });
 
       item.status = 'sent';
       item.sentAt = new Date();
@@ -49,7 +68,14 @@ const processOne = async (id) => {
     item.attempts += 1;
     await item.save();
 
-    const result = await sendEmail({ to: item.to, subject: item.subject, html: item.html });
+    const attachments = (item.attachments || []).map(a => ({
+      filename: a.filename,
+      content: Buffer.from(a.content, 'base64'),
+      contentType: a.contentType,
+      cid: a.cid
+    }));
+
+    const result = await sendEmail({ to: item.to, subject: item.subject, html: item.html, attachments });
 
     item.status = 'sent';
     item.sentAt = new Date();

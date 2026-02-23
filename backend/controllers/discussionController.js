@@ -8,6 +8,7 @@ import Message from '../models/Message.js';
 import Registration from '../models/Registration.js';
 import Event from '../models/Event.js';
 import { asyncHandler, AppError } from '../middleware/errorHandler.js';
+import { notifyEventParticipants, createNotification } from './notificationController.js';
 
 /**
  * @desc    Post a message to event discussion
@@ -47,6 +48,46 @@ export const postMessage = asyncHandler(async (req, res) => {
   });
 
   await message.populate('author', 'firstName lastName organizerName role');
+
+  // Send in-app notifications
+  const authorName = message.author?.firstName || message.author?.organizerName || 'Someone';
+  if (isAnnouncement) {
+    // Notify ALL registered participants about announcements
+    notifyEventParticipants({
+      eventId,
+      senderId: req.user.id,
+      type: 'announcement',
+      title: `📢 Announcement: ${event.name}`,
+      message: `${authorName}: ${content.trim().slice(0, 120)}`,
+      link: `/events/${eventId}`,
+      excludeUser: req.user.id
+    });
+  } else if (parentMessage) {
+    // Notify the original message author about the reply
+    const parent = await Message.findById(parentMessage).select('author');
+    if (parent && parent.author.toString() !== req.user.id) {
+      createNotification({
+        recipient: parent.author,
+        type: 'discussion_reply',
+        title: `💬 Reply in ${event.name}`,
+        message: `${authorName} replied: ${content.trim().slice(0, 120)}`,
+        link: `/events/${eventId}`,
+        event: eventId,
+        sender: req.user.id
+      });
+    }
+  } else {
+    // Notify all participants about new discussion messages
+    notifyEventParticipants({
+      eventId,
+      senderId: req.user.id,
+      type: 'discussion_message',
+      title: `💬 New message: ${event.name}`,
+      message: `${authorName}: ${content.trim().slice(0, 120)}`,
+      link: `/events/${eventId}`,
+      excludeUser: req.user.id
+    });
+  }
 
   res.status(201).json({ success: true, message: message });
 });

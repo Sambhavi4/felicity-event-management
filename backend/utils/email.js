@@ -204,21 +204,40 @@ const sendEmail = async (options) => {
  * Send registration confirmation email with ticket
  */
 export const sendRegistrationEmail = async (participant, event, registration) => {
+  // Build attachments array – embed QR as a CID inline image so email clients render it
+  const attachments = [];
+  let qrCid = null;
+  if (registration.qrCodeData) {
+    try {
+      // qrCodeData is a data URL like "data:image/png;base64,iVBOR..."
+      const base64Data = registration.qrCodeData.replace(/^data:image\/\w+;base64,/, '');
+      qrCid = 'qrcode@felicity';
+      attachments.push({
+        filename: 'qrcode.png',
+        content: Buffer.from(base64Data, 'base64'),
+        contentType: 'image/png',
+        cid: qrCid
+      });
+    } catch (e) {
+      console.error('Failed to prepare QR attachment:', e);
+      qrCid = null;
+    }
+  }
+
   const html = `
     <!DOCTYPE html>
     <html>
     <head>
       <style>
-        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; }
+        .container { max-width: 600px; margin: 0 auto; }
         .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
         .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
         .ticket { background: white; border: 2px dashed #667eea; padding: 20px; margin: 20px 0; border-radius: 10px; }
         .ticket-id { font-size: 24px; font-weight: bold; color: #667eea; text-align: center; }
-        .details { margin: 15px 0; }
         .details p { margin: 5px 0; }
         .qr-container { text-align: center; margin: 20px 0; }
-        .qr-container img { max-width: 200px; }
+        .qr-container img { max-width: 200px; width: 200px; height: 200px; }
         .footer { text-align: center; color: #666; font-size: 12px; margin-top: 20px; }
       </style>
     </head>
@@ -239,9 +258,9 @@ export const sendRegistrationEmail = async (participant, event, registration) =>
               <p><strong>Date:</strong> ${new Date(event.eventStartDate).toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
               <p><strong>Venue:</strong> ${event.venue || 'To be announced'}</p>
             </div>
-            ${registration.qrCodeData ? `
+            ${qrCid ? `
               <div class="qr-container">
-                <img src="${registration.qrCodeData}" alt="QR Code" />
+                <img src="cid:${qrCid}" alt="QR Code" />
                 <p style="font-size: 12px; color: #666;">Show this QR code at the venue</p>
               </div>
             ` : ''}
@@ -262,7 +281,8 @@ export const sendRegistrationEmail = async (participant, event, registration) =>
   return sendEmail({
     to: participant.email,
     subject: `🎫 Registration Confirmed - ${event.name} | Felicity 2026`,
-    html
+    html,
+    attachments
   });
 };
 

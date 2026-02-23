@@ -4,6 +4,7 @@ const emailQueueSchema = new mongoose.Schema({
   to: { type: String, required: true },
   subject: { type: String, required: true },
   html: { type: String, required: true },
+  attachments: { type: mongoose.Schema.Types.Mixed, default: undefined },
   status: { type: String, enum: ['pending', 'processing', 'sent', 'failed'], default: 'pending' },
   attempts: { type: Number, default: 0 },
   lastError: { type: String },

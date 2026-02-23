@@ -187,16 +187,8 @@ export const registerForEvent = asyncHandler(async (req, res, next) => {
   
   // Send confirmation email ONLY for free events (paid events already got a
   // "Payment Required" email above; the real confirmation is sent on approval)
-  if (!event.registrationFee || event.registrationFee <= 0) {
-    try {
-      const html = `<p>Hi <strong>${participant.firstName}</strong>,</p><p>Your registration for <strong>${event.name}</strong> is confirmed. Ticket ID: <strong>${registration.ticketId}</strong></p>`;
-      await (await import('../services/emailService.js')).default.enqueue({ to: participant.email, subject: `🎫 Registration Confirmed - ${event.name}`, html });
-      registration.confirmationEmailSent = true;
-      await registration.save();
-    } catch (emailError) {
-      console.error('Failed to enqueue confirmation email:', emailError);
-    }
-  }
+  // Note: sendRegistrationEmail is already called directly above for free events
+  // so we do NOT enqueue a duplicate here.
   
   // Populate for response
   await registration.populate('event', 'name eventType eventStartDate eventEndDate venue');
@@ -823,6 +815,29 @@ export const paymentAction = asyncHandler(async (req, res, next) => {
     try {
       const participant = registration.participant;
       const event = registration.event;
+
+      // Build CID attachment for QR code so email clients render it
+      const attachments = [];
+      let qrCid = null;
+      if (registration.qrCodeData) {
+        try {
+          const base64Data = registration.qrCodeData.replace(/^data:image\/\w+;base64,/, '');
+          qrCid = 'qrcode@felicity';
+          attachments.push({
+            filename: 'qrcode.png',
+            content: Buffer.from(base64Data, 'base64'),
+            contentType: 'image/png',
+            cid: qrCid
+          });
+        } catch (e) {
+          console.error('QR attachment prep failed:', e);
+          qrCid = null;
+        }
+      }
+      const qrHtml = qrCid
+        ? `<div style="text-align:center;margin:20px 0"><img src="cid:${qrCid}" alt="QR Code" style="max-width:200px;width:200px;height:200px" /><p style="font-size:12px;color:#666">Show this QR code at the venue</p></div>`
+        : '';
+
       let html;
       if (registration.registrationType === 'merchandise') {
         html = `
@@ -833,7 +848,7 @@ export const paymentAction = asyncHandler(async (req, res, next) => {
             <div style="background:#f9f9f9;padding:30px;border-radius:0 0 10px 10px">
               <p>Hi <strong>${participant.firstName}</strong>,</p>
               <p>Your payment has been approved and your merchandise order <strong>${registration.ticketId}</strong> for <strong>${event.name}</strong> is confirmed!</p>
-              ${registration.qrCodeData ? `<div style="text-align:center;margin:20px 0"><img src="${registration.qrCodeData}" alt="QR Code" style="max-width:200px" /><p style="font-size:12px;color:#666">Show this QR code for pickup</p></div>` : ''}
+              ${qrHtml}
             </div>
           </div>
         `;
@@ -849,7 +864,7 @@ export const paymentAction = asyncHandler(async (req, res, next) => {
               <div style="background:#fff;border:2px dashed #667eea;padding:20px;margin:20px 0;border-radius:10px;text-align:center">
                 <p style="font-size:24px;font-weight:bold;color:#667eea">🎫 ${registration.ticketId}</p>
               </div>
-              ${registration.qrCodeData ? `<div style="text-align:center;margin:20px 0"><img src="${registration.qrCodeData}" alt="QR Code" style="max-width:200px" /><p style="font-size:12px;color:#666">Show this QR code at the venue</p></div>` : ''}
+              ${qrHtml}
             </div>
           </div>
         `;
@@ -857,7 +872,8 @@ export const paymentAction = asyncHandler(async (req, res, next) => {
       await (await import('../services/emailService.js')).default.enqueue({
         to: participant.email,
         subject: `✅ Payment Approved — ${event.name}`,
-        html
+        html,
+        attachments
       });
       registration.confirmationEmailSent = true;
     } catch (e) {
@@ -924,7 +940,13 @@ export const scanQRCode = asyncHandler(async (req, res, next) => {
   try {
     parsed = typeof qrData === 'string' ? JSON.parse(qrData) : qrData;
   } catch (e) {
-    throw new AppError('Invalid QR code data', 400);
+    // If JSON parse fails, treat the raw string as a plain ticket ID
+    const trimmed = (typeof qrData === 'string' ? qrData.trim() : '');
+    if (trimmed) {
+      parsed = { ticketId: trimmed };
+    } else {
+      throw new AppError('Invalid QR code data', 400);
+    }
   }
 
   if (!parsed.ticketId) {

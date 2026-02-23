@@ -4,6 +4,15 @@ import eventService from '../services/eventService';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import toast from 'react-hot-toast';
 
+// Convert a Date to local YYYY-MM-DDTHH:MM for datetime-local input
+const toLocalDatetime = (d) => {
+  if (!d) return '';
+  const dt = new Date(d);
+  if (isNaN(dt.getTime())) return '';
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())}T${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
+};
+
 const EditEventPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -21,9 +30,9 @@ const EditEventPage = () => {
       setForm({
         name: ev.name || '',
         description: ev.description || '',
-        registrationDeadline: ev.registrationDeadline ? new Date(ev.registrationDeadline).toISOString().slice(0, 16) : '',
-        eventStartDate: ev.eventStartDate ? new Date(ev.eventStartDate).toISOString().slice(0, 16) : '',
-        eventEndDate: ev.eventEndDate ? new Date(ev.eventEndDate).toISOString().slice(0, 16) : '',
+        registrationDeadline: toLocalDatetime(ev.registrationDeadline),
+        eventStartDate: toLocalDatetime(ev.eventStartDate),
+        eventEndDate: toLocalDatetime(ev.eventEndDate),
         eligibility: ev.eligibility || 'all',
         registrationLimit: ev.registrationLimit || '',
         registrationFee: ev.registrationFee || 0,

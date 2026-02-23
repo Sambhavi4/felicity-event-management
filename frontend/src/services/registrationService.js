@@ -87,6 +87,24 @@ const registrationService = {
       headers: { 'Content-Type': 'multipart/form-data' }
     });
     return response.data;
+  },
+
+  /**
+   * Manual attendance override with audit reason
+   */
+  manualAttendanceOverride: async (registrationId, reason) => {
+    const response = await api.put(`/registrations/${registrationId}/manual-attend`, { reason });
+    return response.data;
+  },
+
+  /**
+   * Export attendance report as CSV
+   */
+  exportAttendance: async (eventId) => {
+    const response = await api.get(`/registrations/event/${eventId}/export`, {
+      responseType: 'blob'
+    });
+    return response.data;
   }
 };
 

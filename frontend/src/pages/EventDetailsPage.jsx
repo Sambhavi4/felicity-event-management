@@ -508,170 +508,290 @@ const EventDetailsPage = () => {
 
       {/* Discussion Tab */}
       {tab === 'discussion' && (
-        <div className="card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <h3>Discussion Forum</h3>
-            <span className="badge badge-info" style={{ fontSize: 11 }}>🔴 Live — auto-refreshes every 5s</span>
+        <div className="card discussion-card" style={{ padding: 0, overflow: 'hidden' }}>
+          {/* Header */}
+          <div style={{
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            padding: '16px 20px', borderBottom: '1px solid var(--border-color)',
+            background: 'linear-gradient(135deg, rgba(108,92,231,0.08), rgba(255,107,157,0.05))'
+          }}>
+            <div>
+              <h3 style={{ fontSize: 16, marginBottom: 2 }}>💬 Discussion Forum</h3>
+              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                {messages.length} message{messages.length !== 1 ? 's' : ''} • Auto-refreshes every 5s
+              </span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--success)', fontWeight: 600 }}>
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--success)', animation: 'notifPulse 2s ease-in-out infinite' }} />
+                LIVE
+              </span>
+              <button className="btn btn-secondary btn-sm" onClick={loadMessages}
+                style={{ fontSize: 11, padding: '4px 10px' }}>
+                ↻ Refresh
+              </button>
+            </div>
           </div>
 
-          {/* Pinned messages first */}
-          {messages.filter(m => m.isPinned).length > 0 && (
-            <div style={{ marginBottom: 16, padding: 12, background: 'rgba(255,193,7,0.08)', borderRadius: 'var(--radius)', border: '1px solid rgba(255,193,7,0.3)' }}>
-              <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--warning)', marginBottom: 8 }}>📌 Pinned Messages</p>
-              {messages.filter(m => m.isPinned).map(msg => (
-                <div key={msg._id} style={{ padding: '8px 0', borderBottom: '1px solid var(--border-color)' }}>
-                  <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--primary)' }}>
-                    {msg.author?.firstName || msg.author?.organizerName || 'User'}
-                  </span>
-                  {msg.isAnnouncement && <span className="badge badge-danger" style={{ marginLeft: 6, fontSize: 10 }}>📢 Announcement</span>}
-                  <div style={{ fontSize: 13, marginTop: 4 }}>{msg.content}</div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* All messages — threaded */}
-          <div style={{ marginBottom: 16, maxHeight: 500, overflowY: 'auto' }}>
-            {messages.length === 0 ? (
-              <p className="text-muted">No messages yet. Start the conversation!</p>
-            ) : (
-              (() => {
-                // Group into threads: top-level messages + their replies
-                const topLevel = messages.filter(m => !m.parentMessage);
-                const replies = messages.filter(m => m.parentMessage);
-                const replyMap = {};
-                replies.forEach(r => {
-                  const parentId = typeof r.parentMessage === 'object' ? r.parentMessage._id : r.parentMessage;
-                  if (!replyMap[parentId]) replyMap[parentId] = [];
-                  replyMap[parentId].push(r);
-                });
-
-                const renderMsg = (msg, isReply = false) => (
-                  <div key={msg._id} style={{
-                    padding: '10px 14px', marginBottom: isReply ? 4 : 8,
-                    marginLeft: isReply ? 28 : 0,
-                    background: msg.isAnnouncement ? 'rgba(239,68,68,0.06)' : isReply ? 'var(--bg-tertiary, var(--bg-secondary))' : 'var(--bg-secondary)',
-                    borderRadius: 'var(--radius)',
-                    border: msg.isPinned ? '1px solid rgba(255,193,7,0.4)' : msg.isAnnouncement ? '1px solid rgba(239,68,68,0.3)' : '1px solid var(--border-color)',
-                    fontSize: isReply ? 13 : 14
+          <div style={{ padding: '16px 20px' }}>
+            {/* Pinned messages section */}
+            {messages.filter(m => m.isPinned).length > 0 && (
+              <div style={{
+                marginBottom: 16, padding: '12px 16px',
+                background: 'rgba(253,203,110,0.08)',
+                borderRadius: 'var(--radius)',
+                border: '1px solid rgba(253,203,110,0.25)',
+                backdropFilter: 'blur(4px)'
+              }}>
+                <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent-gold)', marginBottom: 10, letterSpacing: 0.5 }}>
+                  📌 PINNED
+                </p>
+                {messages.filter(m => m.isPinned).map(msg => (
+                  <div key={'pinned-' + msg._id} style={{
+                    padding: '8px 12px', marginBottom: 6,
+                    background: 'rgba(253,203,110,0.06)',
+                    borderRadius: 8, borderLeft: '3px solid var(--accent-gold)'
                   }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div>
-                        {isReply && msg.parentMessage?.author && (
-                          <span style={{ fontSize: 11, color: 'var(--text-muted)', marginRight: 6 }}>
-                            ↳ replying to {msg.parentMessage.author.firstName || msg.parentMessage.author.organizerName || 'User'}
-                          </span>
-                        )}
-                        <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--primary)' }}>
-                          {msg.author?.firstName || msg.author?.organizerName || 'User'}
-                        </span>
-                        {msg.author?.role === 'organizer' && <span className="badge badge-success" style={{ marginLeft: 6, fontSize: 10 }}>Organizer</span>}
-                        {msg.isAnnouncement && <span className="badge badge-danger" style={{ marginLeft: 6, fontSize: 10 }}>📢 Announcement</span>}
-                        {msg.isPinned && <span className="badge badge-warning" style={{ marginLeft: 6, fontSize: 10 }}>📌</span>}
-                        <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 8 }}>
-                          {new Date(msg.createdAt).toLocaleString()}
-                        </span>
-                      </div>
-                      {/* Moderation + Reply */}
-                      <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-                        {/* Reply button for everyone */}
-                        {isAuthenticated && (
-                          <button className="btn btn-secondary" style={{ padding: '2px 8px', fontSize: 11 }}
-                            onClick={() => setReplyTo({ _id: msg._id, author: msg.author, content: msg.content })}>
-                            ↩ Reply
-                          </button>
-                        )}
-                        {/* Organizer moderation controls */}
-                        {isOrganizer && (
-                          <>
-                            <button className="btn btn-secondary" style={{ padding: '2px 8px', fontSize: 11 }}
-                              onClick={async () => {
-                                try { await api.put(`/discussions/${id}/${msg._id}/pin`); loadMessages(); } catch { toast.error('Failed'); }
-                              }}>
-                              {msg.isPinned ? 'Unpin' : 'Pin'}
-                            </button>
-                            <button className="btn btn-secondary" style={{ padding: '2px 8px', fontSize: 11, color: 'var(--danger)' }}
-                              onClick={async () => {
-                                try { await api.delete(`/discussions/${id}/${msg._id}`); loadMessages(); } catch { toast.error('Failed'); }
-                              }}>
-                              Delete
-                            </button>
-                          </>
-                        )}
-                        {/* Author can delete their own */}
-                        {!isOrganizer && msg.author?._id === user?._id && (
-                          <button className="btn btn-secondary" style={{ padding: '2px 8px', fontSize: 11, color: 'var(--danger)' }}
-                            onClick={async () => {
-                              try { await api.delete(`/discussions/${id}/${msg._id}`); loadMessages(); } catch { toast.error('Failed'); }
-                            }}>
-                            Delete
-                          </button>
-                        )}
-                      </div>
+                      <span style={{ fontWeight: 700, fontSize: 12, color: 'var(--accent)' }}>
+                        {msg.author?.firstName || msg.author?.organizerName || 'User'}
+                        {msg.author?.role === 'organizer' && <span style={{ marginLeft: 6, fontSize: 10, color: 'var(--success)' }}>✦ Organizer</span>}
+                      </span>
+                      <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>
+                        {new Date(msg.createdAt).toLocaleDateString()} {new Date(msg.createdAt).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}
+                      </span>
                     </div>
-                    <div style={{ fontSize: isReply ? 13 : 14, marginTop: 6, lineHeight: 1.5 }}>{msg.content}</div>
-                    {/* Reactions */}
-                    <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-                      {['👍', '❤️', '😂', '🎉', '👏', '🔥'].map(emoji => {
-                        const count = (msg.reactions || []).filter(r => r.emoji === emoji).length;
-                        const myReaction = (msg.reactions || []).some(r => r.emoji === emoji && (r.user === user?._id || r.user?._id === user?._id));
-                        return (
-                          <button key={emoji} onClick={async () => {
-                            try { await api.post(`/discussions/${id}/${msg._id}/react`, { emoji }); loadMessages(); } catch { /* ignore */ }
-                          }} style={{
-                            background: myReaction ? 'var(--primary-alpha, rgba(99,102,241,0.15))' : 'transparent',
-                            border: `1px solid ${myReaction ? 'var(--primary)' : 'var(--border-color)'}`,
-                            borderRadius: 12, padding: '2px 8px', fontSize: 13,
-                            cursor: 'pointer', opacity: count > 0 ? 1 : 0.4, transition: 'all .2s'
-                          }}>
-                            {emoji} {count > 0 && <span style={{ fontSize: 11 }}>{count}</span>}
-                          </button>
-                        );
-                      })}
-                    </div>
+                    <p style={{ fontSize: 13, marginTop: 4, lineHeight: 1.5 }}>{msg.content}</p>
                   </div>
-                );
-
-                return topLevel.map(msg => (
-                  <div key={msg._id}>
-                    {renderMsg(msg)}
-                    {replyMap[msg._id]?.map(r => renderMsg(r, true))}
-                  </div>
-                ));
-              })()
-            )}
-            <div ref={chatEndRef} />
-          </div>
-
-          {/* Reply indicator */}
-          {replyTo && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 12px', background: 'var(--bg-secondary)', borderRadius: 'var(--radius)', marginBottom: 8, fontSize: 13 }}>
-              <span>↩ Replying to <strong>{replyTo.author?.firstName || replyTo.author?.organizerName || 'User'}</strong>: "{replyTo.content?.slice(0, 60)}{replyTo.content?.length > 60 ? '...' : ''}"</span>
-              <button onClick={() => setReplyTo(null)} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: 'var(--text-muted)' }}>✕</button>
-            </div>
-          )}
-
-          {/* Message input */}
-          {isAuthenticated && (
-            <div>
-              {/* Organizer: announcement toggle */}
-              {isOrganizer && (
-                <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, fontSize: 13, cursor: 'pointer' }}>
-                  <input type="checkbox" checked={isAnnouncement} onChange={e => setIsAnnouncement(e.target.checked)} />
-                  📢 Post as Announcement
-                </label>
-              )}
-              <div style={{ display: 'flex', gap: 8 }}>
-                <input className="form-control" placeholder={replyTo ? 'Type your reply...' : 'Type a message...'} value={newMessage}
-                  onChange={e => setNewMessage(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && sendMessage()} />
-                <button className="btn btn-primary" onClick={sendMessage}>Send</button>
+                ))}
               </div>
+            )}
+
+            {/* Messages area */}
+            <div style={{ maxHeight: 500, overflowY: 'auto', marginBottom: 16, scrollBehavior: 'smooth' }}>
+              {messages.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '40px 20px' }}>
+                  <div style={{ fontSize: 40, marginBottom: 12 }}>💬</div>
+                  <p style={{ fontWeight: 600, marginBottom: 4 }}>No messages yet</p>
+                  <p className="text-muted" style={{ fontSize: 13 }}>Be the first to start the conversation!</p>
+                </div>
+              ) : (
+                (() => {
+                  const topLevel = messages.filter(m => !m.parentMessage);
+                  const replies = messages.filter(m => m.parentMessage);
+                  const replyMap = {};
+                  replies.forEach(r => {
+                    const parentId = typeof r.parentMessage === 'object' ? r.parentMessage._id : r.parentMessage;
+                    if (!replyMap[parentId]) replyMap[parentId] = [];
+                    replyMap[parentId].push(r);
+                  });
+
+                  const renderMsg = (msg, isReply = false) => (
+                    <div key={msg._id} className={`msg-bubble ${msg.isAnnouncement ? 'msg-announce' : ''} ${isReply ? 'msg-reply' : ''} ${msg.isPinned ? 'msg-pinned' : ''}`}
+                      style={{
+                        padding: '12px 16px', marginBottom: isReply ? 4 : 10,
+                        marginLeft: isReply ? 32 : 0,
+                        background: msg.isAnnouncement
+                          ? 'linear-gradient(135deg, rgba(239,68,68,0.08), rgba(239,68,68,0.03))'
+                          : isReply
+                            ? 'rgba(108,92,231,0.04)'
+                            : 'var(--bg-secondary)',
+                        borderRadius: isReply ? '4px 12px 12px 12px' : 12,
+                        border: msg.isAnnouncement
+                          ? '1px solid rgba(239,68,68,0.2)'
+                          : msg.isPinned
+                            ? '1px solid rgba(253,203,110,0.3)'
+                            : '1px solid var(--border-color)',
+                        transition: 'all 0.2s',
+                        position: 'relative'
+                      }}>
+
+                      {/* Author line */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                          {/* Avatar circle */}
+                          <span style={{
+                            width: isReply ? 22 : 28, height: isReply ? 22 : 28,
+                            borderRadius: '50%',
+                            background: msg.author?.role === 'organizer' ? 'var(--gradient-primary)' : 'rgba(108,92,231,0.15)',
+                            color: msg.author?.role === 'organizer' ? '#fff' : 'var(--accent)',
+                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                            fontSize: isReply ? 10 : 12, fontWeight: 800, flexShrink: 0
+                          }}>
+                            {(msg.author?.firstName?.[0] || msg.author?.organizerName?.[0] || 'U').toUpperCase()}
+                          </span>
+                          {isReply && msg.parentMessage?.author && (
+                            <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>
+                              ↳ replying to {msg.parentMessage.author.firstName || msg.parentMessage.author.organizerName || 'User'}
+                            </span>
+                          )}
+                          <span style={{ fontWeight: 700, fontSize: isReply ? 12 : 13, color: 'var(--accent)' }}>
+                            {msg.author?.firstName || msg.author?.organizerName || 'User'}
+                          </span>
+                          {msg.author?.role === 'organizer' && (
+                            <span style={{
+                              fontSize: 9, fontWeight: 700, padding: '1px 6px', borderRadius: 6,
+                              background: 'rgba(0,184,148,0.15)', color: 'var(--success)', letterSpacing: 0.5, textTransform: 'uppercase'
+                            }}>Organizer</span>
+                          )}
+                          {msg.isAnnouncement && (
+                            <span style={{
+                              fontSize: 9, fontWeight: 700, padding: '1px 6px', borderRadius: 6,
+                              background: 'rgba(239,68,68,0.1)', color: 'var(--danger)', letterSpacing: 0.5
+                            }}>📢 ANNOUNCEMENT</span>
+                          )}
+                          {msg.isPinned && <span style={{ fontSize: 12 }}>📌</span>}
+                          <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>
+                            {new Date(msg.createdAt).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}
+                          </span>
+                        </div>
+
+                        {/* Actions */}
+                        <div style={{ display: 'flex', gap: 2, alignItems: 'center', opacity: 0.6, transition: 'opacity 0.2s' }}
+                          onMouseEnter={e => e.currentTarget.style.opacity = 1}
+                          onMouseLeave={e => e.currentTarget.style.opacity = 0.6}>
+                          {isAuthenticated && (
+                            <button style={{
+                              background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px',
+                              fontSize: 12, color: 'var(--text-muted)', borderRadius: 6, transition: 'all 0.15s'
+                            }}
+                              onClick={() => setReplyTo({ _id: msg._id, author: msg.author, content: msg.content })}
+                              onMouseEnter={e => { e.target.background = 'var(--bg-secondary)'; e.target.style.color = 'var(--accent)'; }}
+                              onMouseLeave={e => { e.target.style.color = 'var(--text-muted)'; }}>
+                              ↩ Reply
+                            </button>
+                          )}
+                          {isOrganizer && (
+                            <>
+                              <button style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px', fontSize: 12, color: 'var(--text-muted)' }}
+                                onClick={async () => { try { await api.put(`/discussions/${id}/${msg._id}/pin`); loadMessages(); } catch { toast.error('Failed'); } }}>
+                                {msg.isPinned ? '📌' : '📍'}
+                              </button>
+                              <button style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px', fontSize: 12, color: 'var(--danger)' }}
+                                onClick={async () => { try { await api.delete(`/discussions/${id}/${msg._id}`); loadMessages(); } catch { toast.error('Failed'); } }}>
+                                🗑
+                              </button>
+                            </>
+                          )}
+                          {!isOrganizer && msg.author?._id === user?._id && (
+                            <button style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px', fontSize: 12, color: 'var(--danger)' }}
+                              onClick={async () => { try { await api.delete(`/discussions/${id}/${msg._id}`); loadMessages(); } catch { toast.error('Failed'); } }}>
+                              🗑
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Content */}
+                      <div style={{ fontSize: isReply ? 13 : 14, lineHeight: 1.6, paddingLeft: isReply ? 28 : 34, color: 'var(--text-primary)' }}>
+                        {msg.content}
+                      </div>
+
+                      {/* Reactions */}
+                      <div style={{ display: 'flex', gap: 4, marginTop: 8, paddingLeft: isReply ? 28 : 34, flexWrap: 'wrap', alignItems: 'center' }}>
+                        {['👍', '❤️', '😂', '🎉', '👏', '🔥'].map(emoji => {
+                          const count = (msg.reactions || []).filter(r => r.emoji === emoji).length;
+                          const myReaction = (msg.reactions || []).some(r => r.emoji === emoji && (r.user === user?._id || r.user?._id === user?._id));
+                          return (
+                            <button key={emoji} onClick={async () => {
+                              try { await api.post(`/discussions/${id}/${msg._id}/react`, { emoji }); loadMessages(); } catch { /* ignore */ }
+                            }} style={{
+                              background: myReaction ? 'rgba(108,92,231,0.15)' : 'transparent',
+                              border: `1px solid ${myReaction ? 'var(--accent)' : 'transparent'}`,
+                              borderRadius: 20, padding: '2px 6px', fontSize: 14,
+                              cursor: 'pointer', opacity: count > 0 ? 1 : 0.3, transition: 'all .2s',
+                              lineHeight: 1
+                            }}
+                              onMouseEnter={e => { e.currentTarget.style.opacity = 1; e.currentTarget.style.transform = 'scale(1.15)'; }}
+                              onMouseLeave={e => { e.currentTarget.style.opacity = count > 0 ? 1 : 0.3; e.currentTarget.style.transform = 'scale(1)'; }}>
+                              {emoji}{count > 0 && <span style={{ fontSize: 10, marginLeft: 2, fontWeight: 600 }}>{count}</span>}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {/* Reply count */}
+                      {!isReply && replyMap[msg._id]?.length > 0 && (
+                        <div style={{ paddingLeft: 34, marginTop: 4, fontSize: 11, color: 'var(--accent)', fontWeight: 600 }}>
+                          {replyMap[msg._id].length} repl{replyMap[msg._id].length === 1 ? 'y' : 'ies'}
+                        </div>
+                      )}
+                    </div>
+                  );
+
+                  return topLevel.map(msg => (
+                    <div key={msg._id}>
+                      {renderMsg(msg)}
+                      {replyMap[msg._id]?.map(r => renderMsg(r, true))}
+                    </div>
+                  ));
+                })()
+              )}
+              <div ref={chatEndRef} />
             </div>
-          )}
-          {!isAuthenticated && (
-            <p className="text-muted" style={{ fontSize: 13 }}>Log in and register for this event to join the discussion.</p>
-          )}
+
+            {/* Reply indicator */}
+            {replyTo && (
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 8,
+                padding: '8px 14px', marginBottom: 10,
+                background: 'rgba(108,92,231,0.08)',
+                borderRadius: 10, borderLeft: '3px solid var(--accent)',
+                fontSize: 13, animation: 'fadeUp 0.2s ease'
+              }}>
+                <span style={{ color: 'var(--text-muted)' }}>↩ Replying to</span>
+                <strong style={{ color: 'var(--accent)' }}>{replyTo.author?.firstName || replyTo.author?.organizerName || 'User'}</strong>
+                <span style={{ color: 'var(--text-muted)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  "{replyTo.content?.slice(0, 50)}{replyTo.content?.length > 50 ? '...' : ''}"
+                </span>
+                <button onClick={() => setReplyTo(null)} style={{
+                  background: 'none', border: 'none', cursor: 'pointer', fontSize: 16,
+                  color: 'var(--text-muted)', padding: '0 4px', flexShrink: 0
+                }}>✕</button>
+              </div>
+            )}
+
+            {/* Message input */}
+            {isAuthenticated && (
+              <div style={{
+                background: 'var(--bg-secondary)', borderRadius: 14, padding: '12px 16px',
+                border: '1px solid var(--border-color)'
+              }}>
+                {isOrganizer && (
+                  <label style={{
+                    display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10,
+                    fontSize: 12, cursor: 'pointer', fontWeight: 600, color: 'var(--danger)'
+                  }}>
+                    <input type="checkbox" checked={isAnnouncement} onChange={e => setIsAnnouncement(e.target.checked)}
+                      style={{ accentColor: 'var(--danger)' }} />
+                    📢 Post as Announcement (notifies all participants)
+                  </label>
+                )}
+                <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+                  <input className="form-control" style={{
+                    flex: 1, borderRadius: 10,
+                    background: 'var(--bg-primary)', border: '1px solid var(--border-color)'
+                  }}
+                    placeholder={replyTo ? 'Type your reply...' : 'Type a message...'}
+                    value={newMessage}
+                    onChange={e => setNewMessage(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && !e.shiftKey && sendMessage()} />
+                  <button className="btn btn-primary" onClick={sendMessage}
+                    style={{ borderRadius: 10, padding: '10px 20px', fontWeight: 700 }}
+                    disabled={!newMessage.trim()}>
+                    Send ↗
+                  </button>
+                </div>
+              </div>
+            )}
+            {!isAuthenticated && (
+              <div style={{ textAlign: 'center', padding: '16px 0' }}>
+                <p className="text-muted" style={{ fontSize: 13 }}>
+                  <Link to="/login" style={{ fontWeight: 600 }}>Log in</Link> and register for this event to join the discussion.
+                </p>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
