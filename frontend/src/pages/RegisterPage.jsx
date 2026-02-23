@@ -72,10 +72,10 @@ const RegisterPage = () => {
     }
   };
 
-  if (step === 'choice') {
+    if (step === 'choice') {
     return (
-      <div className="auth-page" style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12 }}>
-        <div className="auth-card" style={{ padding: 14, maxWidth: 480, width: '96%', boxSizing: 'border-box' }}>
+      <div className="auth-page" style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 8 }}>
+        <div className="auth-card" style={{ padding: 12, maxWidth: 360, width: '92%', boxSizing: 'border-box' }}>
           <div style={{ textAlign: 'center', marginBottom: 8 }}>
             <img src="/felicity-logo.png" alt="Felicity" className="felicity-logo--large" />
             <h1 style={{ marginTop: 6, fontSize: 22 }}>Join Felicity</h1>
@@ -104,11 +104,11 @@ const RegisterPage = () => {
     );
   }
 
-  return (
-    <div className="auth-page" style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12 }}>
-      <div className="auth-card" style={{ maxWidth: 640, width: '96%', padding: 16 }}>
+    return (
+    <div className="auth-page" style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 8 }}>
+      <div className="auth-card" style={{ maxWidth: 420, width: '92%', padding: 12 }}>
         <div style={{ textAlign: 'center', marginBottom: 10 }}>
-          <img src="/felicity-logo.png" alt="Felicity" className="felicity-logo--large" style={{ width: 'auto', height: 'auto' }} />
+          <img src="/felicity-logo.png" alt="Felicity" className="felicity-logo--large" />
           <h1 style={{ marginTop: 6, fontSize: 20 }}>Register</h1>
           <p className="subtitle">Participant Registration</p>
         </div>

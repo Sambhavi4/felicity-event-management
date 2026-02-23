@@ -11,6 +11,7 @@ const LoginPage = () => {
   const [password, setPassword] = useState('');
   const [captchaId, setCaptchaId] = useState('');
   const [captchaSvg, setCaptchaSvg] = useState('');
+  const [captchaImgUrl, setCaptchaImgUrl] = useState('');
   const [captchaAnswer, setCaptchaAnswer] = useState('');
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
@@ -22,9 +23,19 @@ const LoginPage = () => {
       const data = await authService.getCaptcha();
       setCaptchaId(data.captchaId);
       setCaptchaSvg(data.captchaSvg);
+      try {
+        // Build a safe data URL so the SVG renders even if innerHTML is restricted
+        const svg = data.captchaSvg || '';
+        if (svg) setCaptchaImgUrl(`data:image/svg+xml;utf8,${encodeURIComponent(svg)}`);
+        else setCaptchaImgUrl('');
+      } catch (e) {
+        setCaptchaImgUrl('');
+      }
       setCaptchaAnswer('');
     } catch {
       console.error('Failed to load CAPTCHA');
+      setCaptchaSvg('');
+      setCaptchaImgUrl('');
     }
   }, []);
 
@@ -74,8 +85,13 @@ const LoginPage = () => {
           <div className="form-group">
             <label>CAPTCHA</label>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-              <div dangerouslySetInnerHTML={{ __html: captchaSvg }}
-                style={{ border: '1px solid var(--border-color)', borderRadius: 6, overflow: 'hidden', flexShrink: 0 }} />
+              {captchaImgUrl ? (
+                <img src={captchaImgUrl} alt="CAPTCHA" style={{ border: '1px solid var(--border-color)', borderRadius: 6, overflow: 'hidden', flexShrink: 0 }} />
+              ) : (
+                <div style={{ border: '1px solid var(--border-color)', borderRadius: 6, padding: 12, minWidth: 160, color: 'var(--text-muted)' }}>
+                  CAPTCHA unavailable
+                </div>
+              )}
               <button type="button" onClick={loadCaptcha}
                 style={{ background: 'none', border: '1px solid var(--border-color)', borderRadius: 6, padding: '6px 10px', cursor: 'pointer', fontSize: 16 }}
                 title="Refresh CAPTCHA">&#x21bb;</button>

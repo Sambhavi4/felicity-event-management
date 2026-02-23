@@ -328,11 +328,12 @@ a:hover { color: var(--accent-hover); }
 
 /* Reusable logo class: scale base sizes by ~1.5x for a larger presence */
 .felicity-logo--large {
-  width: calc(1.5 * 160px); /* base small width is 160 -> scale to ~240 */
-  height: calc(1.5 * 100px); /* base small height is 100 -> scale to ~150 */
+  max-width: 140px;
+  height: auto;
   object-fit: contain;
-  margin-bottom: 8px;
-  filter: drop-shadow(0 0 28px rgba(108,92,231,0.45));
+  display: block;
+  margin: 8px auto 6px;
+  filter: drop-shadow(0 0 8px rgba(108,92,231,0.28));
 }
 
 .felicity-logo--xlarge {
@@ -496,13 +497,13 @@ a:hover { color: var(--accent-hover); }
   margin-bottom: 6px; color: var(--text-secondary);
 }
 .form-control {
-  width: 100%; padding: 11px 14px;
+  width: 100%; padding: 7px 10px;
   background: var(--bg-secondary);
   border: 1px solid var(--border-color);
-  border-radius: var(--radius);
+  border-radius: 10px;
   color: var(--text-primary);
-  font-size: 14px; font-family: inherit;
-  transition: all 0.25s;
+  font-size: 13px; font-family: inherit;
+  transition: all 0.2s;
 }
 .form-control:focus {
   outline: none;
@@ -663,7 +664,7 @@ tr:hover { background: rgba(108,92,231,0.04); }
 .auth-page {
   min-height: 100vh;
   display: flex; align-items: center; justify-content: center;
-  padding: 20px;
+  padding: 8px;
   position: relative;
   overflow: hidden;
 }
@@ -691,20 +692,20 @@ tr:hover { background: rgba(108,92,231,0.04); }
   background: var(--bg-card);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
-  padding: 44px;
-  width: 100%; max-width: 440px;
+  padding: 12px 12px;
+  width: 100%; max-width: 300px;
   box-shadow: var(--shadow);
   position: relative;
   animation: modalIn 0.5s ease;
 }
 .auth-card h1 {
-  text-align: center; margin-bottom: 8px;
-  font-size: 26px; font-weight: 800;
+  text-align: center; margin-bottom: 4px;
+  font-size: 16px; font-weight: 800;
   font-family: 'Space Grotesk', 'Inter', sans-serif;
 }
 .auth-card .subtitle {
   text-align: center; color: var(--text-muted);
-  margin-bottom: 28px; font-size: 14px;
+  margin-bottom: 10px; font-size: 12px;
 }
 
 /* ===== SEARCH BAR ===== */
