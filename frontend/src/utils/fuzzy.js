@@ -1,13 +1,11 @@
 // Lightweight fuzzy matching helper used across the frontend.
-// It supports: case-insensitive substring, simple subsequence match (characters in order),
-// and a small edit-distance tolerance for short typos using Levenshtein distance.
+// Strategies: substring → word-prefix → tight subsequence → Levenshtein typo tolerance.
 
 function normalize(s) {
   return (s || '').toString().toLowerCase().trim();
 }
 
 function levenshtein(a, b) {
-  // simple iterative DP Levenshtein
   const m = a.length, n = b.length;
   if (m === 0) return n;
   if (n === 0) return m;
@@ -25,15 +23,27 @@ function levenshtein(a, b) {
   return v1[n];
 }
 
-function isSubsequence(query, target) {
-  // returns true if all chars in query appear in order inside target
+/**
+ * Tight subsequence: all query chars must appear in order in the target,
+ * AND the matched span must not be excessively larger than the query.
+ * This avoids "ev" matching "every big competition" loosely.
+ */
+function tightSubsequence(query, target) {
   if (!query) return true;
-  let i = 0, j = 0;
-  while (i < query.length && j < target.length) {
-    if (query[i] === target[j]) i++;
-    j++;
+  let qi = 0;
+  let firstMatch = -1;
+  let lastMatch = -1;
+  for (let ti = 0; ti < target.length && qi < query.length; ti++) {
+    if (query[qi] === target[ti]) {
+      if (firstMatch === -1) firstMatch = ti;
+      lastMatch = ti;
+      qi++;
+    }
   }
-  return i === query.length;
+  if (qi < query.length) return false;
+  // The span of matched characters should be at most 2x the query length
+  const span = lastMatch - firstMatch + 1;
+  return span <= query.length * 2;
 }
 
 export function matchesFuzzy(target, rawQuery) {
@@ -42,24 +52,34 @@ export function matchesFuzzy(target, rawQuery) {
   if (!q) return true;
   if (!t) return false;
 
-  // fast path: substring
+  // Fast path: full substring match
   if (t.includes(q)) return true;
 
-  // tokenized: all query tokens must match somewhere in target (subsequence or fuzzy)
+  // Tokenized: ALL query tokens must match somewhere in the target
   const tokens = q.split(/\s+/).filter(Boolean);
+  const words = t.split(/[^a-z0-9@._]+/).filter(Boolean);
+
   for (const token of tokens) {
+    // 1. Substring in full target
     if (t.includes(token)) continue;
-    // subsequence check (handles characters out-of-order slightly)
-    if (isSubsequence(token, t)) continue;
-    // fuzzy by word: split target into words and allow small edit distance
-    const words = t.split(/[^a-z0-9]+/).filter(Boolean);
+
+    // 2. Word-prefix: token matches the start of any word in target
+    if (words.some(w => w.startsWith(token))) continue;
+
+    // 3. Tight subsequence (characters in order, close together)
+    if (token.length >= 3 && tightSubsequence(token, t)) continue;
+
+    // 4. Levenshtein: allow small typos against individual words
     const matched = words.some(w => {
-      // threshold: small absolute or proportional threshold
-      const thresh = Math.max(1, Math.floor(Math.min(w.length, token.length) * 0.34));
+      // Only compare if lengths are somewhat similar
+      if (Math.abs(w.length - token.length) > 2) return false;
+      // Threshold: 1 edit for words up to 5 chars, 2 edits for longer
+      const thresh = token.length <= 5 ? 1 : 2;
       return levenshtein(token, w) <= thresh;
     });
     if (matched) continue;
-    // token failed to match any strategy => overall no match
+
+    // Token failed all strategies
     return false;
   }
 

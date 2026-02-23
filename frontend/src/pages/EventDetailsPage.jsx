@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import eventService from '../services/eventService';
 import registrationService from '../services/registrationService';
@@ -13,6 +13,7 @@ const formatDate = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day: 'nu
 const EventDetailsPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user, isAuthenticated } = useAuth();
   const [event, setEvent] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -20,7 +21,7 @@ const EventDetailsPage = () => {
   const [formResponses, setFormResponses] = useState([]);
   const [selectedVariant, setSelectedVariant] = useState('');
   const [quantity, setQuantity] = useState(1);
-  const [tab, setTab] = useState('details');
+  const [tab, setTab] = useState(searchParams.get('tab') || 'details');
   // Discussion
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
@@ -145,7 +146,10 @@ const EventDetailsPage = () => {
     try {
       const res = await eventService.getEventAnalytics(id);
       setEventAnalytics(res.analytics || {});
-    } catch { /* ignore */ }
+    } catch (err) {
+      console.error('Analytics load error:', err);
+      setEventAnalytics({}); // show empty state instead of infinite spinner
+    }
   };
 
   const filteredParticipants = participants.filter(r => {
@@ -319,8 +323,8 @@ const EventDetailsPage = () => {
         <button className={`tab ${tab === 'details' ? 'active' : ''}`} onClick={() => setTab('details')}>Details</button>
         {isAuthenticated && <button className={`tab ${tab === 'discussion' ? 'active' : ''}`} onClick={() => setTab('discussion')}>Discussion</button>}
         {showFeedbackTab && <button className={`tab ${tab === 'feedback' ? 'active' : ''}`} onClick={() => setTab('feedback')}>Feedback</button>}
-        {isOrganizer && <button className={`tab ${tab === 'participants' ? 'active' : ''}`} onClick={() => setTab('participants')}>Participants</button>}
-        {isOrganizer && <button className={`tab ${tab === 'analytics' ? 'active' : ''}`} onClick={() => setTab('analytics')}>📊 Analytics</button>}
+        {(isOrganizer || user?.role === 'admin') && <button className={`tab ${tab === 'participants' ? 'active' : ''}`} onClick={() => setTab('participants')}>Participants</button>}
+        {(isOrganizer || user?.role === 'admin') && <button className={`tab ${tab === 'analytics' ? 'active' : ''}`} onClick={() => setTab('analytics')}>📊 Analytics</button>}
       </div>
 
       {tab === 'details' && (
@@ -851,191 +855,6 @@ const EventDetailsPage = () => {
             </div>
           </div>
 
-          {/* Participants Tab (organizer only) — enhanced with search, filter, more columns */}
-          {tab === 'participants' && isOrganizer && (
-            <div className="card">
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
-                <h3>Participants ({participants.length})</h3>
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                  <div className="dashboard-search" style={{ minWidth: 200 }}>
-                    <span className="search-icon-inner">🔍</span>
-                    <input className="form-control search-input" placeholder="Search name, email, ticket..."
-                      value={participantSearch} onChange={e => setParticipantSearch(e.target.value)}
-                      style={{ fontSize: 13 }} />
-                  </div>
-                  <button className="btn btn-secondary btn-sm" onClick={() => loadParticipants()}>↻ Refresh</button>
-                  <button className="btn btn-secondary btn-sm" onClick={async () => {
-                    try {
-                      const blob = await registrationService.exportRegistrations(id);
-                      const url = window.URL.createObjectURL(blob);
-                      const a = document.createElement('a');
-                      a.href = url;
-                      a.download = `registrations_${id}.csv`;
-                      a.click();
-                      toast.success('CSV exported');
-                    } catch { toast.error('Export failed'); }
-                  }}>📥 Export CSV</button>
-                </div>
-              </div>
-              {participantsLoading ? (
-                <LoadingSpinner />
-              ) : filteredParticipants.length === 0 ? (
-                <p className="text-muted">{participantSearch ? 'No matches found.' : 'No registrations yet.'}</p>
-              ) : (
-                <div className="table-wrapper">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Name</th><th>Email</th><th>Ticket ID</th><th>Reg Date</th>
-                        <th>Payment</th><th>Team</th><th>Attendance</th><th>Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredParticipants.map(r => (
-                        <tr key={r._id}>
-                          <td>{r.participant?.firstName} {r.participant?.lastName}</td>
-                          <td style={{ fontSize: 12 }}>{r.participant?.email}</td>
-                          <td style={{ fontFamily: 'monospace', fontSize: 12 }}>{r.ticketId}</td>
-                          <td style={{ fontSize: 12 }}>{formatDate(r.createdAt)}</td>
-                          <td>
-                            {r.paymentStatus && r.paymentStatus !== 'not_required'
-                              ? <span className={`badge ${r.paymentStatus === 'approved' ? 'badge-success' : r.paymentStatus === 'rejected' ? 'badge-danger' : 'badge-warning'}`} style={{ fontSize: 10 }}>{r.paymentStatus}</span>
-                              : <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>—</span>}
-                          </td>
-                          <td style={{ fontSize: 12 }}>{r.team?.name || '—'}</td>
-                          <td>
-                            {r.attended
-                              ? <span className="badge badge-success" style={{ fontSize: 10 }}>✅ {r.attendedAt ? new Date(r.attendedAt).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : 'Yes'}</span>
-                              : <span className="badge badge-warning" style={{ fontSize: 10 }}>⏳ Pending</span>}
-                          </td>
-                          <td>
-                            <span className={`badge ${r.status === 'confirmed' ? 'badge-success' : r.status === 'attended' ? 'badge-info' : r.status === 'cancelled' ? 'badge-danger' : 'badge-warning'}`} style={{ fontSize: 10 }}>
-                              {r.status}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Analytics Tab (organizer only) */}
-          {tab === 'analytics' && isOrganizer && (
-            <div>
-              {!eventAnalytics ? <LoadingSpinner /> : (
-                <>
-                  <div className="grid grid-4" style={{ marginBottom: 24 }}>
-                    {[
-                      { label: 'Total Registrations', value: eventAnalytics.totalRegistrations || participants.length || 0, icon: '📝' },
-                      { label: 'Attended', value: eventAnalytics.attendance?.attended || participants.filter(p => p.attended).length || 0, icon: '✅' },
-                      { label: 'Revenue', value: `₹${eventAnalytics.revenue || 0}`, icon: '💰' },
-                      { label: 'Teams', value: eventAnalytics.teamCount || eventAnalytics.teams || 0, icon: '👥' },
-                    ].map(s => (
-                      <div key={s.label} className="stat-card-v2">
-                        <div className="stat-card-icon">{s.icon}</div>
-                        <div>
-                          <div className="stat-value-v2">{s.value}</div>
-                          <div className="stat-label-v2">{s.label}</div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Attendance Rate */}
-                  {(() => {
-                    const total = eventAnalytics.totalRegistrations || participants.length || 0;
-                    const attended = eventAnalytics.attendance?.attended || participants.filter(p => p.attended).length || 0;
-                    const pct = total > 0 ? Math.round((attended / total) * 100) : 0;
-                    return (
-                      <div className="card" style={{ marginBottom: 24 }}>
-                        <h4 style={{ marginBottom: 8 }}>Attendance Rate</h4>
-                        <div style={{ background: 'var(--bg-secondary)', borderRadius: 8, height: 32, overflow: 'hidden' }}>
-                          <div style={{
-                            width: `${pct}%`, height: '100%',
-                            background: pct >= 70 ? 'var(--success)' : pct >= 40 ? 'var(--warning)' : 'var(--danger)',
-                            borderRadius: 8, transition: 'width .5s ease',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            color: '#fff', fontSize: 13, fontWeight: 600, minWidth: pct > 0 ? 40 : 0
-                          }}>{pct}%</div>
-                        </div>
-                        <p className="text-muted" style={{ fontSize: 12, marginTop: 6 }}>{attended} of {total} registered participants attended</p>
-                      </div>
-                    );
-                  })()}
-
-                  {/* Registration Status Breakdown */}
-                  {(eventAnalytics.statusBreakdown || eventAnalytics.registrationsByStatus) && (
-                    <div className="card" style={{ marginBottom: 24 }}>
-                      <h4 style={{ marginBottom: 12 }}>Registration Status Breakdown</h4>
-                      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                        {Object.entries(eventAnalytics.statusBreakdown || eventAnalytics.registrationsByStatus || {}).map(([status, count]) => (
-                          <div key={status} style={{
-                            padding: '12px 20px', background: 'var(--bg-secondary)', borderRadius: 10,
-                            textAlign: 'center', border: '1px solid var(--border-color)', minWidth: 80
-                          }}>
-                            <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--accent)' }}>{count}</div>
-                            <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'capitalize', fontWeight: 600 }}>{status}</div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Sales/Revenue breakdown for merchandise */}
-                  {event.eventType === 'merchandise' && (
-                    <div className="card" style={{ marginBottom: 24 }}>
-                      <h4 style={{ marginBottom: 12 }}>💰 Sales Summary</h4>
-                      <div className="grid grid-3">
-                        <div style={{ textAlign: 'center' }}>
-                          <div style={{ fontSize: 28, fontWeight: 800, color: 'var(--success)' }}>₹{eventAnalytics.revenue || 0}</div>
-                          <div className="text-muted" style={{ fontSize: 12 }}>Total Revenue</div>
-                        </div>
-                        <div style={{ textAlign: 'center' }}>
-                          <div style={{ fontSize: 28, fontWeight: 800, color: 'var(--accent)' }}>{eventAnalytics.totalRegistrations || 0}</div>
-                          <div className="text-muted" style={{ fontSize: 12 }}>Total Orders</div>
-                        </div>
-                        <div style={{ textAlign: 'center' }}>
-                          <div style={{ fontSize: 28, fontWeight: 800, color: 'var(--warning)' }}>
-                            ₹{eventAnalytics.totalRegistrations > 0 ? Math.round((eventAnalytics.revenue || 0) / eventAnalytics.totalRegistrations) : 0}
-                          </div>
-                          <div className="text-muted" style={{ fontSize: 12 }}>Avg Order Value</div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Team Completion */}
-                  {event.isTeamEvent && eventAnalytics.teamCount > 0 && (
-                    <div className="card" style={{ marginBottom: 24 }}>
-                      <h4 style={{ marginBottom: 12 }}>👥 Team Completion</h4>
-                      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-                        <div style={{ textAlign: 'center', padding: '8px 16px' }}>
-                          <div style={{ fontSize: 24, fontWeight: 700 }}>{eventAnalytics.teamCount}</div>
-                          <div className="text-muted" style={{ fontSize: 12 }}>Total Teams</div>
-                        </div>
-                        {eventAnalytics.completeTeams != null && (
-                          <div style={{ textAlign: 'center', padding: '8px 16px' }}>
-                            <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--success)' }}>{eventAnalytics.completeTeams}</div>
-                            <div className="text-muted" style={{ fontSize: 12 }}>Complete Teams</div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  <div style={{ textAlign: 'center', marginTop: 16 }}>
-                    <button className="btn btn-primary" onClick={() => navigate(`/event-registrations/${id}`)}>
-                      📋 View Full Registrations & Attendance
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
-          )}
-
           {/* Rating Distribution */}
           {feedbackStats?.ratingDistribution && (
             <div style={{ marginBottom: 20, padding: 12, background: 'var(--bg-secondary)', borderRadius: 'var(--radius)' }}>
@@ -1089,6 +908,204 @@ const EventDetailsPage = () => {
                 <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>{new Date(fb.createdAt).toLocaleDateString()}</p>
               </div>
             ))
+          )}
+        </div>
+      )}
+
+      {/* Participants Tab (organizer / admin) */}
+      {tab === 'participants' && (isOrganizer || user?.role === 'admin') && (
+        <div className="card">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+            <h3>Participants ({participants.length})</h3>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <div className="dashboard-search" style={{ minWidth: 200 }}>
+                <span className="search-icon-inner">🔍</span>
+                <input className="form-control search-input" placeholder="Search name, email, ticket..."
+                  value={participantSearch} onChange={e => setParticipantSearch(e.target.value)}
+                  style={{ fontSize: 13 }} />
+              </div>
+              <button className="btn btn-secondary btn-sm" onClick={() => loadParticipants()}>↻ Refresh</button>
+              <button className="btn btn-secondary btn-sm" onClick={async () => {
+                try {
+                  const blob = await registrationService.exportRegistrations(id);
+                  const url = window.URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `registrations_${id}.csv`;
+                  a.click();
+                  toast.success('CSV exported');
+                } catch { toast.error('Export failed'); }
+              }}>📥 Export CSV</button>
+            </div>
+          </div>
+          {participantsLoading ? (
+            <LoadingSpinner />
+          ) : filteredParticipants.length === 0 ? (
+            <p className="text-muted">{participantSearch ? 'No matches found.' : 'No registrations yet.'}</p>
+          ) : (
+            <div className="table-wrapper">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Name</th><th>Email</th><th>Ticket ID</th><th>Reg Date</th>
+                    <th>Payment</th><th>Team</th><th>Attendance</th><th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredParticipants.map(r => (
+                    <tr key={r._id}>
+                      <td>{r.participant?.firstName} {r.participant?.lastName}</td>
+                      <td style={{ fontSize: 12 }}>{r.participant?.email}</td>
+                      <td style={{ fontFamily: 'monospace', fontSize: 12 }}>{r.ticketId}</td>
+                      <td style={{ fontSize: 12 }}>{formatDate(r.createdAt)}</td>
+                      <td>
+                        {r.paymentStatus && r.paymentStatus !== 'not_required'
+                          ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, padding: '3px 8px', borderRadius: 16, fontWeight: 600, fontSize: 10,
+                              background: r.paymentStatus === 'approved' ? 'rgba(34,197,94,0.12)' : r.paymentStatus === 'rejected' ? 'rgba(239,68,68,0.12)' : 'rgba(234,179,8,0.12)',
+                              color: r.paymentStatus === 'approved' ? '#16a34a' : r.paymentStatus === 'rejected' ? '#dc2626' : '#ca8a04' }}>
+                              <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'currentColor', display: 'inline-block' }}></span>
+                              {r.paymentStatus === 'approved' ? 'Paid' : r.paymentStatus === 'rejected' ? 'Rejected' : 'Pending'}
+                            </span>
+                          : <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Free</span>}
+                      </td>
+                      <td style={{ fontSize: 12 }}>{r.team?.name || '—'}</td>
+                      <td>
+                        {r.attended
+                          ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, background: 'rgba(34,197,94,0.12)', color: '#16a34a', padding: '3px 8px', borderRadius: 16, fontWeight: 600, fontSize: 10 }}>
+                              <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#16a34a', display: 'inline-block' }}></span>
+                              Present {r.attendedAt ? new Date(r.attendedAt).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : ''}
+                            </span>
+                          : <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, background: 'rgba(234,179,8,0.12)', color: '#ca8a04', padding: '3px 8px', borderRadius: 16, fontWeight: 600, fontSize: 10 }}>
+                              <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#ca8a04', display: 'inline-block' }}></span>
+                              Absent
+                            </span>}
+                      </td>
+                      <td>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, padding: '3px 8px', borderRadius: 16, fontWeight: 600, fontSize: 10,
+                          background: r.status === 'confirmed' ? 'rgba(34,197,94,0.12)' : r.status === 'attended' ? 'rgba(59,130,246,0.12)' : r.status === 'cancelled' ? 'rgba(239,68,68,0.12)' : 'rgba(234,179,8,0.12)',
+                          color: r.status === 'confirmed' ? '#16a34a' : r.status === 'attended' ? '#2563eb' : r.status === 'cancelled' ? '#dc2626' : '#ca8a04' }}>
+                          {r.status === 'confirmed' ? '✓' : r.status === 'attended' ? '🎯' : r.status === 'cancelled' ? '✗' : '⏳'} {r.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Analytics Tab (organizer / admin) */}
+      {tab === 'analytics' && (isOrganizer || user?.role === 'admin') && (
+        <div>
+          {!eventAnalytics ? <LoadingSpinner /> : (
+            <>
+              <div className="grid grid-4" style={{ marginBottom: 24 }}>
+                {[
+                  { label: 'Total Registrations', value: eventAnalytics.totalRegistrations || participants.length || 0, icon: '📝' },
+                  { label: 'Attended', value: eventAnalytics.attendance?.attended || participants.filter(p => p.attended).length || 0, icon: '✅' },
+                  { label: 'Revenue', value: `₹${eventAnalytics.revenue || 0}`, icon: '💰' },
+                  { label: 'Teams', value: eventAnalytics.teamCount || eventAnalytics.teams || 0, icon: '👥' },
+                ].map(s => (
+                  <div key={s.label} className="stat-card-v2">
+                    <div className="stat-card-icon">{s.icon}</div>
+                    <div>
+                      <div className="stat-value-v2">{s.value}</div>
+                      <div className="stat-label-v2">{s.label}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Attendance Rate */}
+              {(() => {
+                const total = eventAnalytics.totalRegistrations || participants.length || 0;
+                const attended = eventAnalytics.attendance?.attended || participants.filter(p => p.attended).length || 0;
+                const pct = total > 0 ? Math.round((attended / total) * 100) : 0;
+                return (
+                  <div className="card" style={{ marginBottom: 24 }}>
+                    <h4 style={{ marginBottom: 8 }}>Attendance Rate</h4>
+                    <div style={{ background: 'var(--bg-secondary)', borderRadius: 8, height: 32, overflow: 'hidden' }}>
+                      <div style={{
+                        width: `${pct}%`, height: '100%',
+                        background: pct >= 70 ? 'var(--success)' : pct >= 40 ? 'var(--warning)' : 'var(--danger)',
+                        borderRadius: 8, transition: 'width .5s ease',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        color: '#fff', fontSize: 13, fontWeight: 600, minWidth: pct > 0 ? 40 : 0
+                      }}>{pct}%</div>
+                    </div>
+                    <p className="text-muted" style={{ fontSize: 12, marginTop: 6 }}>{attended} of {total} registered participants attended</p>
+                  </div>
+                );
+              })()}
+
+              {/* Registration Status Breakdown */}
+              {(eventAnalytics.statusBreakdown || eventAnalytics.registrationsByStatus) && (
+                <div className="card" style={{ marginBottom: 24 }}>
+                  <h4 style={{ marginBottom: 12 }}>Registration Status Breakdown</h4>
+                  <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                    {Object.entries(eventAnalytics.statusBreakdown || eventAnalytics.registrationsByStatus || {}).map(([status, count]) => (
+                      <div key={status} style={{
+                        padding: '12px 20px', background: 'var(--bg-secondary)', borderRadius: 10,
+                        textAlign: 'center', border: '1px solid var(--border-color)', minWidth: 80
+                      }}>
+                        <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--accent)' }}>{count}</div>
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'capitalize', fontWeight: 600 }}>{status}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Sales/Revenue breakdown for merchandise */}
+              {event.eventType === 'merchandise' && (
+                <div className="card" style={{ marginBottom: 24 }}>
+                  <h4 style={{ marginBottom: 12 }}>💰 Sales Summary</h4>
+                  <div className="grid grid-3">
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ fontSize: 28, fontWeight: 800, color: 'var(--success)' }}>₹{eventAnalytics.revenue || 0}</div>
+                      <div className="text-muted" style={{ fontSize: 12 }}>Total Revenue</div>
+                    </div>
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ fontSize: 28, fontWeight: 800, color: 'var(--accent)' }}>{eventAnalytics.totalRegistrations || 0}</div>
+                      <div className="text-muted" style={{ fontSize: 12 }}>Total Orders</div>
+                    </div>
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ fontSize: 28, fontWeight: 800, color: 'var(--warning)' }}>
+                        ₹{eventAnalytics.totalRegistrations > 0 ? Math.round((eventAnalytics.revenue || 0) / eventAnalytics.totalRegistrations) : 0}
+                      </div>
+                      <div className="text-muted" style={{ fontSize: 12 }}>Avg Order Value</div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Team Completion */}
+              {event.isTeamEvent && eventAnalytics.teamCount > 0 && (
+                <div className="card" style={{ marginBottom: 24 }}>
+                  <h4 style={{ marginBottom: 12 }}>👥 Team Completion</h4>
+                  <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+                    <div style={{ textAlign: 'center', padding: '8px 16px' }}>
+                      <div style={{ fontSize: 24, fontWeight: 700 }}>{eventAnalytics.teamCount}</div>
+                      <div className="text-muted" style={{ fontSize: 12 }}>Total Teams</div>
+                    </div>
+                    {eventAnalytics.completeTeams != null && (
+                      <div style={{ textAlign: 'center', padding: '8px 16px' }}>
+                        <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--success)' }}>{eventAnalytics.completeTeams}</div>
+                        <div className="text-muted" style={{ fontSize: 12 }}>Complete Teams</div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              <div style={{ textAlign: 'center', marginTop: 16 }}>
+                <button className="btn btn-primary" onClick={() => navigate(`/event-registrations/${id}`)}>
+                  📋 View Full Registrations & Attendance
+                </button>
+              </div>
+            </>
           )}
         </div>
       )}

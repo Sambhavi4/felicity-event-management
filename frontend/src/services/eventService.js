@@ -94,11 +94,6 @@ const eventService = {
     const response = await api.get('/events/organizer/analytics');
     return response.data;
   }
-  ,
-  getOrganizerAnalytics: async () => {
-    const response = await api.get('/events/organizer/analytics');
-    return response.data;
-  }
 };
 
 export default eventService;

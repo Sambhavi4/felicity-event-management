@@ -6,25 +6,37 @@ import eventService from '../services/eventService';
 import api, { getUploadUrl } from '../services/api';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import toast from 'react-hot-toast';
+import jsQR from 'jsqr';
 
 /* ── Helper: format date/time ── */
 const fmt = (d) => d ? new Date(d).toLocaleString() : '—';
 
-/* ── Helper: decode QR from image or canvas via BarcodeDetector API ── */
+/* ── Helper: decode QR from an image element, video frame, or canvas ── */
 const detectQR = async (source) => {
-  if (!('BarcodeDetector' in window)) return null;
   try {
-    const detector = new window.BarcodeDetector({ formats: ['qr_code'] });
-    const codes = await detector.detect(source);
-    return codes.length > 0 ? codes[0].rawValue : null;
+    // Draw source onto a temporary canvas to get pixel data
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    const w = source.videoWidth || source.naturalWidth || source.width;
+    const h = source.videoHeight || source.naturalHeight || source.height;
+    if (!w || !h) return null;
+    canvas.width = w;
+    canvas.height = h;
+    ctx.drawImage(source, 0, 0, w, h);
+    const imageData = ctx.getImageData(0, 0, w, h);
+    const code = jsQR(imageData.data, w, h, { inversionAttempts: 'dontInvert' });
+    return code ? code.data : null;
   } catch { return null; }
 };
 
-/* ── Helper: extract text from QR image via canvas pixel analysis fallback ── */
-const extractTextFromImage = async (file) => {
-  // For non-Chrome browsers, try reading QR from image using canvas + jsQR-like approach
-  // Since we can't decode QR without a library, prompt user to use paste instead
-  return null;
+/* ── Helper: decode QR from canvas element directly ── */
+const detectQRFromCanvas = (canvas) => {
+  try {
+    const ctx = canvas.getContext('2d');
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const code = jsQR(imageData.data, canvas.width, canvas.height, { inversionAttempts: 'dontInvert' });
+    return code ? code.data : null;
+  } catch { return null; }
 };
 
 const EventRegistrationsPage = () => {
@@ -41,7 +53,6 @@ const EventRegistrationsPage = () => {
   const [scanInput, setScanInput] = useState('');
   const [scanning, setScanning] = useState(false);
   const [camActive, setCamActive] = useState(false);
-  const camSupported = 'BarcodeDetector' in window;
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -180,25 +191,19 @@ const EventRegistrationsPage = () => {
       } catch { /* fall through */ }
     }
 
-    // Image files — try BarcodeDetector if available
+    // Image files — decode QR using jsQR (works in ALL browsers)
     if (file.type?.startsWith('image/')) {
       const img = new Image();
       const objectUrl = URL.createObjectURL(file);
       img.onload = async () => {
-        if (camSupported) {
-          const val = await detectQR(img);
-          URL.revokeObjectURL(objectUrl);
-          if (val) {
-            setScanResult({ ok: null, message: 'QR detected — submitting...' });
-            await submitQRData(val);
-          } else {
-            setScanResult({ ok: false, message: '❌ No QR code found in image. Please use the text input below to paste your ticket ID (e.g. FEL-XXXXXX).' });
-            toast.error('No QR found in image');
-          }
+        const val = await detectQR(img);
+        URL.revokeObjectURL(objectUrl);
+        if (val) {
+          setScanResult({ ok: null, message: 'QR detected — submitting...' });
+          await submitQRData(val);
         } else {
-          URL.revokeObjectURL(objectUrl);
-          setScanResult({ ok: false, message: '⚠️ QR image scanning is not supported in this browser. Please paste/type your ticket ID in the field below instead.' });
-          toast.error('Use paste/type input for this browser');
+          setScanResult({ ok: false, message: '❌ No QR code found in image. Make sure the image contains a clear QR code, or paste your ticket ID below.' });
+          toast.error('No QR found in image');
         }
       };
       img.onerror = () => {
@@ -214,7 +219,6 @@ const EventRegistrationsPage = () => {
 
   /* ── Camera ── */
   const startCamera = async () => {
-    if (!camSupported) { toast.error('Camera scanning requires Chrome/Edge 83+. Use file upload or paste.'); return; }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
       streamRef.current = stream;
@@ -237,8 +241,9 @@ const EventRegistrationsPage = () => {
       if (!video || !canvas || !streamRef.current) return;
       if (video.readyState === video.HAVE_ENOUGH_DATA) {
         canvas.width = video.videoWidth; canvas.height = video.videoHeight;
-        canvas.getContext('2d').drawImage(video, 0, 0);
-        const val = await detectQR(canvas);
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(video, 0, 0);
+        const val = detectQRFromCanvas(canvas);
         if (val) { stopCamera(); setScanResult({ ok: null, message: 'QR detected — submitting...' }); await submitQRData(val); return; }
       }
       scanLoopRef.current = requestAnimationFrame(loop);
@@ -336,7 +341,7 @@ const EventRegistrationsPage = () => {
               <thead>
                 <tr>
                   <th>Participant</th><th>Email</th><th>Ticket ID</th>
-                  <th>Status</th><th>Payment</th><th>Type</th><th>Actions</th>
+                  <th>Status</th><th>Payment</th><th>Attendance</th><th>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -346,27 +351,45 @@ const EventRegistrationsPage = () => {
                     <td>{reg.participant?.email}</td>
                     <td style={{ fontSize: 12, fontFamily: 'monospace' }}>{reg.ticketId}</td>
                     <td>
-                      <span className={`badge ${reg.status === 'confirmed' ? 'badge-success' : reg.status === 'attended' ? 'badge-info' : reg.status === 'cancelled' ? 'badge-danger' : 'badge-warning'}`}>
-                        {reg.status}
+                      <span className={`badge ${reg.status === 'confirmed' ? 'badge-success' : reg.status === 'attended' ? 'badge-info' : reg.status === 'cancelled' ? 'badge-danger' : 'badge-warning'}`}
+                        style={{ padding: '4px 10px', borderRadius: 20, fontWeight: 600, fontSize: 11, letterSpacing: 0.3 }}>
+                        {reg.status === 'confirmed' ? '✓ Confirmed' : reg.status === 'attended' ? '🎯 Attended' : reg.status === 'cancelled' ? '✗ Cancelled' : '⏳ Pending'}
                       </span>
                     </td>
                     <td>
                       {reg.paymentStatus && reg.paymentStatus !== 'not_required'
-                        ? <span className={`badge ${reg.paymentStatus === 'approved' ? 'badge-success' : reg.paymentStatus === 'rejected' ? 'badge-danger' : 'badge-warning'}`}>{reg.paymentStatus}</span>
-                        : <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>—</span>}
+                        ? <span className={`badge ${reg.paymentStatus === 'approved' ? 'badge-success' : reg.paymentStatus === 'rejected' ? 'badge-danger' : 'badge-warning'}`}
+                            style={{ padding: '4px 10px', borderRadius: 20, fontWeight: 600, fontSize: 11 }}>
+                            {reg.paymentStatus === 'approved' ? '✓ Paid' : reg.paymentStatus === 'rejected' ? '✗ Rejected' : '⏳ Pending'}
+                          </span>
+                        : <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Free</span>}
                     </td>
-                    <td>{reg.registrationType}</td>
                     <td>
-                      {reg.status === 'confirmed' && !reg.attended && (
-                        <span className="badge badge-warning" style={{ fontSize: 11 }}>Awaiting QR Scan</span>
+                      {reg.attended ? (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'rgba(34,197,94,0.12)', color: '#16a34a', padding: '4px 10px', borderRadius: 20, fontWeight: 600, fontSize: 11 }}>
+                          <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#16a34a', display: 'inline-block' }}></span>
+                          Present {reg.attendedAt ? new Date(reg.attendedAt).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : ''}
+                        </span>
+                      ) : (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'rgba(234,179,8,0.12)', color: '#ca8a04', padding: '4px 10px', borderRadius: 20, fontWeight: 600, fontSize: 11 }}>
+                          <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#ca8a04', display: 'inline-block' }}></span>
+                          Absent
+                        </span>
                       )}
-                      {reg.attended && (
-                        <span className="badge badge-success" style={{ fontSize: 11 }}>✅ Attended</span>
-                      )}
+                    </td>
+                    <td>
                       {reg.paymentStatus === 'pending' && (
-                        <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
-                          <button className="btn btn-success btn-sm" onClick={() => handlePaymentAction(reg._id, 'approve')}>✅ Approve</button>
-                          <button className="btn btn-danger btn-sm" onClick={() => handlePaymentAction(reg._id, 'reject')}>❌ Reject</button>
+                        <div style={{ display: 'flex', gap: 4 }}>
+                          <button onClick={() => handlePaymentAction(reg._id, 'approve')}
+                            style={{ background: 'rgba(34,197,94,0.15)', color: '#16a34a', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 8, padding: '5px 12px', cursor: 'pointer', fontWeight: 600, fontSize: 12, transition: 'all .15s' }}
+                            onMouseOver={e => e.target.style.background='rgba(34,197,94,0.3)'} onMouseOut={e => e.target.style.background='rgba(34,197,94,0.15)'}>
+                            ✓ Approve
+                          </button>
+                          <button onClick={() => handlePaymentAction(reg._id, 'reject')}
+                            style={{ background: 'rgba(239,68,68,0.12)', color: '#dc2626', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 8, padding: '5px 12px', cursor: 'pointer', fontWeight: 600, fontSize: 12, transition: 'all .15s' }}
+                            onMouseOver={e => e.target.style.background='rgba(239,68,68,0.25)'} onMouseOut={e => e.target.style.background='rgba(239,68,68,0.12)'}>
+                            ✗ Reject
+                          </button>
                         </div>
                       )}
                     </td>
@@ -398,10 +421,9 @@ const EventRegistrationsPage = () => {
           <div style={{ marginBottom: 20 }}>
             <div style={{ fontWeight: 600, marginBottom: 8 }}>
               📹 Camera Scan
-              {!camSupported && <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 400, marginLeft: 8 }}>(Chrome/Edge 83+ only)</span>}
             </div>
             {!camActive ? (
-              <button className="btn btn-primary" onClick={startCamera} disabled={!camSupported}>Start Camera</button>
+              <button className="btn btn-primary" onClick={startCamera}>Start Camera</button>
             ) : (
               <div>
                 <video ref={videoRef} style={{ width: '100%', maxWidth: 480, borderRadius: 8, border: '2px solid var(--primary-color)' }} playsInline muted />
@@ -423,7 +445,7 @@ const EventRegistrationsPage = () => {
             <button className="btn btn-secondary" onClick={() => fileInputRef.current?.click()}>
               Choose Image File
             </button>
-            {!camSupported && <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 8 }}>Image QR scan needs Chrome 83+, but text/JSON files work everywhere</span>}
+            <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 8 }}>Supports PNG, JPG, or text/JSON files</span>
           </div>
 
           {/* Paste */}
@@ -521,8 +543,12 @@ const EventRegistrationsPage = () => {
                             <td style={{ fontSize: 12 }}>{fmt(r.attendedAt)}</td>
                             <td style={{ fontSize: 12 }}>
                               {r.attendanceOverride?.overridden
-                                ? <span style={{ color: 'var(--warning-color)', cursor: 'help' }} title={`Reason: ${r.attendanceOverride.reason}`}>⚠️ Manual</span>
-                                : <span style={{ color: 'var(--success-color)' }}>✅ QR Scan</span>}
+                                ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'rgba(234,179,8,0.12)', color: '#ca8a04', padding: '3px 10px', borderRadius: 16, fontWeight: 600, fontSize: 11, cursor: 'help' }} title={`Reason: ${r.attendanceOverride.reason}`}>
+                                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#ca8a04' }}></span> Manual Override
+                                  </span>
+                                : <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'rgba(34,197,94,0.12)', color: '#16a34a', padding: '3px 10px', borderRadius: 16, fontWeight: 600, fontSize: 11 }}>
+                                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#16a34a' }}></span> QR Scan
+                                  </span>}
                             </td>
                           </tr>
                         ))}
@@ -588,20 +614,33 @@ const EventRegistrationsPage = () => {
                         ) : <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>Not uploaded</span>}
                       </td>
                       <td>
-                        <span className={`badge ${reg.paymentStatus === 'approved' ? 'badge-success' : reg.paymentStatus === 'rejected' ? 'badge-danger' : reg.paymentStatus === 'pending' ? 'badge-warning' : 'badge-primary'}`}>
-                          {reg.paymentStatus || 'not_required'}
+                        <span className={`badge ${reg.paymentStatus === 'approved' ? 'badge-success' : reg.paymentStatus === 'rejected' ? 'badge-danger' : reg.paymentStatus === 'pending' ? 'badge-warning' : 'badge-primary'}`}
+                          style={{ padding: '4px 10px', borderRadius: 20, fontWeight: 600, fontSize: 11 }}>
+                          {reg.paymentStatus === 'approved' ? '✓ Approved' : reg.paymentStatus === 'rejected' ? '✗ Rejected' : reg.paymentStatus === 'pending' ? '⏳ Pending' : '—'}
                         </span>
                       </td>
                       <td>
                         {reg.paymentStatus === 'pending' ? (
-                          <div style={{ display: 'flex', gap: 6 }}>
-                            <button className="btn btn-success btn-sm" onClick={() => handlePaymentAction(reg._id, 'approve')}>✅ Approve</button>
-                            <button className="btn btn-danger btn-sm" onClick={() => handlePaymentAction(reg._id, 'reject')}>❌ Reject</button>
+                          <div style={{ display: 'flex', gap: 4 }}>
+                            <button onClick={() => handlePaymentAction(reg._id, 'approve')}
+                              style={{ background: 'rgba(34,197,94,0.15)', color: '#16a34a', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 8, padding: '5px 12px', cursor: 'pointer', fontWeight: 600, fontSize: 12, transition: 'all .15s' }}
+                              onMouseOver={e => e.target.style.background='rgba(34,197,94,0.3)'} onMouseOut={e => e.target.style.background='rgba(34,197,94,0.15)'}>
+                              ✓ Approve
+                            </button>
+                            <button onClick={() => handlePaymentAction(reg._id, 'reject')}
+                              style={{ background: 'rgba(239,68,68,0.12)', color: '#dc2626', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 8, padding: '5px 12px', cursor: 'pointer', fontWeight: 600, fontSize: 12, transition: 'all .15s' }}
+                              onMouseOver={e => e.target.style.background='rgba(239,68,68,0.25)'} onMouseOut={e => e.target.style.background='rgba(239,68,68,0.12)'}>
+                              ✗ Reject
+                            </button>
                           </div>
                         ) : reg.paymentStatus === 'approved' ? (
-                          <span style={{ fontSize: 12, color: 'var(--success-color)' }}>Approved ✓</span>
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#16a34a', fontWeight: 600 }}>
+                            <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#16a34a' }}></span> Done
+                          </span>
                         ) : reg.paymentStatus === 'rejected' ? (
-                          <span style={{ fontSize: 12, color: 'var(--danger-color)' }}>Rejected</span>
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#dc2626', fontWeight: 600 }}>
+                            <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#dc2626' }}></span> Declined
+                          </span>
                         ) : <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>—</span>}
                       </td>
                     </tr>

@@ -59,7 +59,7 @@ export const postMessage = asyncHandler(async (req, res) => {
       type: 'announcement',
       title: `📢 Announcement: ${event.name}`,
       message: `${authorName}: ${content.trim().slice(0, 120)}`,
-      link: `/events/${eventId}`,
+      link: `/events/${eventId}?tab=discussion`,
       excludeUser: req.user.id
     });
   } else if (parentMessage) {
@@ -71,23 +71,14 @@ export const postMessage = asyncHandler(async (req, res) => {
         type: 'discussion_reply',
         title: `💬 Reply in ${event.name}`,
         message: `${authorName} replied: ${content.trim().slice(0, 120)}`,
-        link: `/events/${eventId}`,
+        link: `/events/${eventId}?tab=discussion`,
         event: eventId,
         sender: req.user.id
       });
     }
-  } else {
-    // Notify all participants about new discussion messages
-    notifyEventParticipants({
-      eventId,
-      senderId: req.user.id,
-      type: 'discussion_message',
-      title: `💬 New message: ${event.name}`,
-      message: `${authorName}: ${content.trim().slice(0, 120)}`,
-      link: `/events/${eventId}`,
-      excludeUser: req.user.id
-    });
   }
+  // Regular (non-announcement, non-reply) messages do NOT send mass notifications.
+  // The discussion tab auto-polls every 5 seconds so participants see new messages in real time.
 
   res.status(201).json({ success: true, message: message });
 });
