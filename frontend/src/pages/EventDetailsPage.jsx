@@ -45,6 +45,9 @@ const EventDetailsPage = () => {
   // Participants (organizer view)
   const [participants, setParticipants] = useState([]);
   const [participantsLoading, setParticipantsLoading] = useState(false);
+  const [participantSearch, setParticipantSearch] = useState('');
+  // Analytics (organizer view)
+  const [eventAnalytics, setEventAnalytics] = useState(null);
 
   useEffect(() => {
     loadEvent();
@@ -54,6 +57,7 @@ const EventDetailsPage = () => {
     if (tab === 'discussion') loadMessages();
     if (tab === 'feedback') loadFeedback();
     if (tab === 'participants') loadParticipants();
+    if (tab === 'analytics') loadAnalyticsData();
   }, [tab, filterRating]);
 
   // Auto-poll discussion messages every 5 seconds for real-time feel
@@ -136,6 +140,22 @@ const EventDetailsPage = () => {
       toast.error(msg);
     } finally { setParticipantsLoading(false); }
   };
+
+  const loadAnalyticsData = async () => {
+    try {
+      const res = await eventService.getEventAnalytics(id);
+      setEventAnalytics(res.analytics || {});
+    } catch { /* ignore */ }
+  };
+
+  const filteredParticipants = participants.filter(r => {
+    if (!participantSearch.trim()) return true;
+    const term = participantSearch.toLowerCase();
+    return (r.participant?.firstName || '').toLowerCase().includes(term) ||
+      (r.participant?.lastName || '').toLowerCase().includes(term) ||
+      (r.participant?.email || '').toLowerCase().includes(term) ||
+      (r.ticketId || '').toLowerCase().includes(term);
+  });
 
   const handleRegister = async () => {
     if (!isAuthenticated) return navigate('/login');
@@ -300,6 +320,7 @@ const EventDetailsPage = () => {
         {isAuthenticated && <button className={`tab ${tab === 'discussion' ? 'active' : ''}`} onClick={() => setTab('discussion')}>Discussion</button>}
         {showFeedbackTab && <button className={`tab ${tab === 'feedback' ? 'active' : ''}`} onClick={() => setTab('feedback')}>Feedback</button>}
         {isOrganizer && <button className={`tab ${tab === 'participants' ? 'active' : ''}`} onClick={() => setTab('participants')}>Participants</button>}
+        {isOrganizer && <button className={`tab ${tab === 'analytics' ? 'active' : ''}`} onClick={() => setTab('analytics')}>📊 Analytics</button>}
       </div>
 
       {tab === 'details' && (
@@ -830,13 +851,19 @@ const EventDetailsPage = () => {
             </div>
           </div>
 
-          {/* Participants Tab (organizer only) */}
+          {/* Participants Tab (organizer only) — enhanced with search, filter, more columns */}
           {tab === 'participants' && isOrganizer && (
             <div className="card">
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                <h3>Participants</h3>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button className="btn btn-secondary btn-sm" onClick={() => loadParticipants()}>Refresh</button>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+                <h3>Participants ({participants.length})</h3>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <div className="dashboard-search" style={{ minWidth: 200 }}>
+                    <span className="search-icon-inner">🔍</span>
+                    <input className="form-control search-input" placeholder="Search name, email, ticket..."
+                      value={participantSearch} onChange={e => setParticipantSearch(e.target.value)}
+                      style={{ fontSize: 13 }} />
+                  </div>
+                  <button className="btn btn-secondary btn-sm" onClick={() => loadParticipants()}>↻ Refresh</button>
                   <button className="btn btn-secondary btn-sm" onClick={async () => {
                     try {
                       const blob = await registrationService.exportRegistrations(id);
@@ -845,32 +872,166 @@ const EventDetailsPage = () => {
                       a.href = url;
                       a.download = `registrations_${id}.csv`;
                       a.click();
+                      toast.success('CSV exported');
                     } catch { toast.error('Export failed'); }
-                  }}>Export CSV</button>
+                  }}>📥 Export CSV</button>
                 </div>
               </div>
               {participantsLoading ? (
                 <LoadingSpinner />
-              ) : participants.length === 0 ? (
-                <p className="text-muted">No registrations yet.</p>
+              ) : filteredParticipants.length === 0 ? (
+                <p className="text-muted">{participantSearch ? 'No matches found.' : 'No registrations yet.'}</p>
               ) : (
                 <div className="table-wrapper">
                   <table>
                     <thead>
-                      <tr><th>Name</th><th>Email</th><th>Ticket ID</th><th>Status</th></tr>
+                      <tr>
+                        <th>Name</th><th>Email</th><th>Ticket ID</th><th>Reg Date</th>
+                        <th>Payment</th><th>Team</th><th>Attendance</th><th>Status</th>
+                      </tr>
                     </thead>
                     <tbody>
-                      {participants.map(r => (
+                      {filteredParticipants.map(r => (
                         <tr key={r._id}>
                           <td>{r.participant?.firstName} {r.participant?.lastName}</td>
-                          <td>{r.participant?.email}</td>
+                          <td style={{ fontSize: 12 }}>{r.participant?.email}</td>
                           <td style={{ fontFamily: 'monospace', fontSize: 12 }}>{r.ticketId}</td>
-                          <td>{r.status}</td>
+                          <td style={{ fontSize: 12 }}>{formatDate(r.createdAt)}</td>
+                          <td>
+                            {r.paymentStatus && r.paymentStatus !== 'not_required'
+                              ? <span className={`badge ${r.paymentStatus === 'approved' ? 'badge-success' : r.paymentStatus === 'rejected' ? 'badge-danger' : 'badge-warning'}`} style={{ fontSize: 10 }}>{r.paymentStatus}</span>
+                              : <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>—</span>}
+                          </td>
+                          <td style={{ fontSize: 12 }}>{r.team?.name || '—'}</td>
+                          <td>
+                            {r.attended
+                              ? <span className="badge badge-success" style={{ fontSize: 10 }}>✅ {r.attendedAt ? new Date(r.attendedAt).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : 'Yes'}</span>
+                              : <span className="badge badge-warning" style={{ fontSize: 10 }}>⏳ Pending</span>}
+                          </td>
+                          <td>
+                            <span className={`badge ${r.status === 'confirmed' ? 'badge-success' : r.status === 'attended' ? 'badge-info' : r.status === 'cancelled' ? 'badge-danger' : 'badge-warning'}`} style={{ fontSize: 10 }}>
+                              {r.status}
+                            </span>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
+              )}
+            </div>
+          )}
+
+          {/* Analytics Tab (organizer only) */}
+          {tab === 'analytics' && isOrganizer && (
+            <div>
+              {!eventAnalytics ? <LoadingSpinner /> : (
+                <>
+                  <div className="grid grid-4" style={{ marginBottom: 24 }}>
+                    {[
+                      { label: 'Total Registrations', value: eventAnalytics.totalRegistrations || participants.length || 0, icon: '📝' },
+                      { label: 'Attended', value: eventAnalytics.attendance?.attended || participants.filter(p => p.attended).length || 0, icon: '✅' },
+                      { label: 'Revenue', value: `₹${eventAnalytics.revenue || 0}`, icon: '💰' },
+                      { label: 'Teams', value: eventAnalytics.teamCount || eventAnalytics.teams || 0, icon: '👥' },
+                    ].map(s => (
+                      <div key={s.label} className="stat-card-v2">
+                        <div className="stat-card-icon">{s.icon}</div>
+                        <div>
+                          <div className="stat-value-v2">{s.value}</div>
+                          <div className="stat-label-v2">{s.label}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Attendance Rate */}
+                  {(() => {
+                    const total = eventAnalytics.totalRegistrations || participants.length || 0;
+                    const attended = eventAnalytics.attendance?.attended || participants.filter(p => p.attended).length || 0;
+                    const pct = total > 0 ? Math.round((attended / total) * 100) : 0;
+                    return (
+                      <div className="card" style={{ marginBottom: 24 }}>
+                        <h4 style={{ marginBottom: 8 }}>Attendance Rate</h4>
+                        <div style={{ background: 'var(--bg-secondary)', borderRadius: 8, height: 32, overflow: 'hidden' }}>
+                          <div style={{
+                            width: `${pct}%`, height: '100%',
+                            background: pct >= 70 ? 'var(--success)' : pct >= 40 ? 'var(--warning)' : 'var(--danger)',
+                            borderRadius: 8, transition: 'width .5s ease',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            color: '#fff', fontSize: 13, fontWeight: 600, minWidth: pct > 0 ? 40 : 0
+                          }}>{pct}%</div>
+                        </div>
+                        <p className="text-muted" style={{ fontSize: 12, marginTop: 6 }}>{attended} of {total} registered participants attended</p>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Registration Status Breakdown */}
+                  {(eventAnalytics.statusBreakdown || eventAnalytics.registrationsByStatus) && (
+                    <div className="card" style={{ marginBottom: 24 }}>
+                      <h4 style={{ marginBottom: 12 }}>Registration Status Breakdown</h4>
+                      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                        {Object.entries(eventAnalytics.statusBreakdown || eventAnalytics.registrationsByStatus || {}).map(([status, count]) => (
+                          <div key={status} style={{
+                            padding: '12px 20px', background: 'var(--bg-secondary)', borderRadius: 10,
+                            textAlign: 'center', border: '1px solid var(--border-color)', minWidth: 80
+                          }}>
+                            <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--accent)' }}>{count}</div>
+                            <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'capitalize', fontWeight: 600 }}>{status}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Sales/Revenue breakdown for merchandise */}
+                  {event.eventType === 'merchandise' && (
+                    <div className="card" style={{ marginBottom: 24 }}>
+                      <h4 style={{ marginBottom: 12 }}>💰 Sales Summary</h4>
+                      <div className="grid grid-3">
+                        <div style={{ textAlign: 'center' }}>
+                          <div style={{ fontSize: 28, fontWeight: 800, color: 'var(--success)' }}>₹{eventAnalytics.revenue || 0}</div>
+                          <div className="text-muted" style={{ fontSize: 12 }}>Total Revenue</div>
+                        </div>
+                        <div style={{ textAlign: 'center' }}>
+                          <div style={{ fontSize: 28, fontWeight: 800, color: 'var(--accent)' }}>{eventAnalytics.totalRegistrations || 0}</div>
+                          <div className="text-muted" style={{ fontSize: 12 }}>Total Orders</div>
+                        </div>
+                        <div style={{ textAlign: 'center' }}>
+                          <div style={{ fontSize: 28, fontWeight: 800, color: 'var(--warning)' }}>
+                            ₹{eventAnalytics.totalRegistrations > 0 ? Math.round((eventAnalytics.revenue || 0) / eventAnalytics.totalRegistrations) : 0}
+                          </div>
+                          <div className="text-muted" style={{ fontSize: 12 }}>Avg Order Value</div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Team Completion */}
+                  {event.isTeamEvent && eventAnalytics.teamCount > 0 && (
+                    <div className="card" style={{ marginBottom: 24 }}>
+                      <h4 style={{ marginBottom: 12 }}>👥 Team Completion</h4>
+                      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+                        <div style={{ textAlign: 'center', padding: '8px 16px' }}>
+                          <div style={{ fontSize: 24, fontWeight: 700 }}>{eventAnalytics.teamCount}</div>
+                          <div className="text-muted" style={{ fontSize: 12 }}>Total Teams</div>
+                        </div>
+                        {eventAnalytics.completeTeams != null && (
+                          <div style={{ textAlign: 'center', padding: '8px 16px' }}>
+                            <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--success)' }}>{eventAnalytics.completeTeams}</div>
+                            <div className="text-muted" style={{ fontSize: 12 }}>Complete Teams</div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  <div style={{ textAlign: 'center', marginTop: 16 }}>
+                    <button className="btn btn-primary" onClick={() => navigate(`/event-registrations/${id}`)}>
+                      📋 View Full Registrations & Attendance
+                    </button>
+                  </div>
+                </>
               )}
             </div>
           )}

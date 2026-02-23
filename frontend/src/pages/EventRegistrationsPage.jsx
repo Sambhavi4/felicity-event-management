@@ -20,6 +20,13 @@ const detectQR = async (source) => {
   } catch { return null; }
 };
 
+/* ── Helper: extract text from QR image via canvas pixel analysis fallback ── */
+const extractTextFromImage = async (file) => {
+  // For non-Chrome browsers, try reading QR from image using canvas + jsQR-like approach
+  // Since we can't decode QR without a library, prompt user to use paste instead
+  return null;
+};
+
 const EventRegistrationsPage = () => {
   const { eventId } = useParams();
   const [event, setEvent] = useState(null);
@@ -164,23 +171,45 @@ const EventRegistrationsPage = () => {
     const file = e.target.files?.[0];
     if (!file) return;
     e.target.value = '';
-    if (!camSupported) {
-      // Fallback: read file as text if it's a text/json file, or show instructions
-      if (file.type === 'application/json' || file.name.endsWith('.json') || file.type === 'text/plain') {
+
+    // Text/JSON files — read content directly as ticket data
+    if (file.type === 'application/json' || file.name.endsWith('.json') || file.type === 'text/plain' || file.name.endsWith('.txt')) {
+      try {
         const text = await file.text();
         if (text.trim()) { await submitQRData(text.trim()); return; }
-      }
-      setScanResult({ ok: false, message: '⚠️ QR image scanning requires Chrome/Edge 83+. Use the paste/type input instead, or upload a JSON/text file.' });
+      } catch { /* fall through */ }
+    }
+
+    // Image files — try BarcodeDetector if available
+    if (file.type?.startsWith('image/')) {
+      const img = new Image();
+      const objectUrl = URL.createObjectURL(file);
+      img.onload = async () => {
+        if (camSupported) {
+          const val = await detectQR(img);
+          URL.revokeObjectURL(objectUrl);
+          if (val) {
+            setScanResult({ ok: null, message: 'QR detected — submitting...' });
+            await submitQRData(val);
+          } else {
+            setScanResult({ ok: false, message: '❌ No QR code found in image. Please use the text input below to paste your ticket ID (e.g. FEL-XXXXXX).' });
+            toast.error('No QR found in image');
+          }
+        } else {
+          URL.revokeObjectURL(objectUrl);
+          setScanResult({ ok: false, message: '⚠️ QR image scanning is not supported in this browser. Please paste/type your ticket ID in the field below instead.' });
+          toast.error('Use paste/type input for this browser');
+        }
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(objectUrl);
+        setScanResult({ ok: false, message: '❌ Could not load image. Try a different file or paste the ticket ID below.' });
+      };
+      img.src = objectUrl;
       return;
     }
-    const img = new Image();
-    img.onload = async () => {
-      const val = await detectQR(img);
-      URL.revokeObjectURL(img.src);
-      if (val) { setScanResult({ ok: null, message: 'QR detected — submitting...' }); await submitQRData(val); }
-      else { setScanResult({ ok: false, message: '❌ No QR code found in image. Try pasting the ticket ID directly.' }); toast.error('No QR found'); }
-    };
-    img.src = URL.createObjectURL(file);
+
+    setScanResult({ ok: false, message: '❌ Unsupported file type. Upload a QR image (PNG/JPG) or a text/JSON file with ticket data.' });
   };
 
   /* ── Camera ── */
@@ -329,7 +358,10 @@ const EventRegistrationsPage = () => {
                     <td>{reg.registrationType}</td>
                     <td>
                       {reg.status === 'confirmed' && !reg.attended && (
-                        <button className="btn btn-success btn-sm" onClick={() => handleMarkAttendance(reg._id)}>Mark Present</button>
+                        <span className="badge badge-warning" style={{ fontSize: 11 }}>Awaiting QR Scan</span>
+                      )}
+                      {reg.attended && (
+                        <span className="badge badge-success" style={{ fontSize: 11 }}>✅ Attended</span>
                       )}
                       {reg.paymentStatus === 'pending' && (
                         <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
@@ -444,6 +476,9 @@ const EventRegistrationsPage = () => {
               {/* Not attended — with Mark Present + Override */}
               <div className="card" style={{ marginBottom: 24 }}>
                 <h3 style={{ marginBottom: 12 }}>Not Yet Scanned ({attendanceDash.notAttendedList?.length || 0})</h3>
+                <div className="alert alert-warning" style={{ marginBottom: 12, fontSize: 13 }}>
+                  ⚠️ Attendance can only be marked by scanning the participant's QR code or entering their ticket ID in the <strong>QR Scanner</strong> tab. Manual override requires a documented reason and is logged for audit.
+                </div>
                 {attendanceDash.notAttendedList?.length > 0 ? (
                   <div className="table-wrapper">
                     <table>
@@ -456,10 +491,9 @@ const EventRegistrationsPage = () => {
                             <td style={{ fontSize: 12, fontFamily: 'monospace' }}>{r.ticketId}</td>
                             <td>
                               <div style={{ display: 'flex', gap: 6 }}>
-                                <button className="btn btn-success btn-sm" onClick={() => handleMarkAttendance(r._id)}>Mark Present</button>
-                                <button className="btn btn-secondary btn-sm" title="Manual override — logged for audit"
+                                <button className="btn btn-warning btn-sm" title="Manual override — requires reason, logged for audit"
                                   onClick={() => { setOverrideModal({ regId: r._id, name: `${r.participant?.firstName} ${r.participant?.lastName}` }); setOverrideReason(''); }}>
-                                  Override
+                                  ⚠️ Manual Override
                                 </button>
                               </div>
                             </td>
