@@ -38,7 +38,7 @@ services:
       - key: EMAIL_REPLY_TO
         value: "felicity7284@gmail.com"
       - key: FRONTEND_URL
-        value: "https://felicity-event-mgmt.netlify.app"
+        value: "https://felicity-event-mgmt.vercel.app"
       - key: API_URL
         value: "https://felicity-backend-api.onrender.com"
       - key: S3_BUCKET

@@ -22,6 +22,33 @@ A full-stack event management system for IIIT Hyderabad's annual techno-cultural
 |---|---|---|
 | **React 19** (via Vite) | ^19.2.0 | Component-based UI architecture. React 19 adds built-in transitions and improved concurrent rendering. Vite provides near-instant HMR and ES-module-first bundling, massively reducing feedback loop during development. |
 | **react-router-dom v7** | ^7.13.0 | Declarative client-side routing between pages (landing, login, events, dashboard, etc.). v7 ships improved data APIs and nested route support allowing protected-route composition with minimal boilerplate. |
+```
+
+### Deploying to Vercel
+
+Set the following secrets in your Vercel project (or in GitHub Actions):
+
+- `VERCEL_TOKEN` — your personal Vercel token
+- `VERCEL_ORG_ID` — your Vercel organization id (optional; helpful in CI)
+- `VERCEL_PROJECT_ID` — your Vercel project id (optional; helpful in CI)
+
+Quick manual deploy via Vercel CLI:
+
+```bash
+# Install CLI (one-time)
+npm install -g vercel
+
+# Login
+vercel login
+
+# From the repository root
+vercel --prod --confirm
+```
+
+Or use the included GitHub Actions workflow which deploys on push to `main`/`master`: `.github/workflows/deploy-vercel.yml`.
+
+Make sure to set the frontend environment variable `VITE_API_URL` to `https://felicity-backend-api.onrender.com/api` in the Vercel dashboard (Environment > Production) so the app points to the correct backend.
+
 | **axios** | ^1.13.4 | Promise-based HTTP client with interceptors. Used for a centralised API client (`src/services/api.js`) that automatically attaches JWT Bearer tokens and handles 401 auto-logout — impossible to do cleanly with the native `fetch` API without custom wrappers. |
 | **react-hot-toast** | ^2.6.0 | Lightweight, accessible toast notification library (< 5 kB). Chosen over heavier alternatives (react-toastify) because it requires zero global configuration, supports custom styles and positions, and integrates with CSS variables for dark-mode. |
 | **react-icons** | ^5.5.0 | Tree-shakeable SVG icon set covering FontAwesome, Material, Heroicons in a single package. Avoids icon-font loading overhead and keeps bundle size small by importing only used icons. |

@@ -1,5 +1,5 @@
 
 
-Frontend URL: https://felicity-event-mgmt.netlify.app
+Frontend URL: https://felicity-event-mgmt.vercel.app
 Backend URL: https://felicity-backend-api.onrender.com
 
