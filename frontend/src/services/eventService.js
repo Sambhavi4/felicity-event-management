@@ -3,6 +3,15 @@
  * 
  * Handles all event-related API calls
  */
+
+import api from './api';
+
+const eventService = {
+  /**
+   * Get all events with filters
+   */
+  getEvents: async (params = {}) => {
+    const response = await api.get('/events', { params });
     return response.data;
   },
 

@@ -1,3 +1,26 @@
+/**
+ * Felicity Event Management System - Backend Server
+ * 
+ * ARCHITECTURE:
+ * ┌─────────────────────────────────────────────────────────────┐
+ * │                        Express App                          │
+ * ├─────────────────────────────────────────────────────────────┤
+ * │  Middleware Stack:                                          │
+ * │  1. CORS - Cross-origin requests                           │
+ * │  2. JSON Parser - Parse request bodies                     │
+ * │  3. URL Encoded - Parse form data                          │
+ * │  4. Routes - API endpoints                                 │
+ * │  5. Error Handler - Catch and format errors                │
+ * └─────────────────────────────────────────────────────────────┘
+ * 
+ * STARTUP FLOW:
+ * 1. Load environment variables
+ * 2. Connect to MongoDB
+ * 3. Seed admin account if not exists
+ * 4. Mount routes
+ * 5. Start HTTP server
+ */
+
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';

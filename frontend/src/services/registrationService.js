@@ -1,5 +1,11 @@
 /**
  * Registration Service
+ * 
+ * Handles event registration and ticket management
+ */
+
+import api from './api';
+
 const registrationService = {
   /**
    * Register for a normal event

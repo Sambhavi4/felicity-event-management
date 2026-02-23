@@ -1,5 +1,12 @@
 /**
  * Admin Service
+ * 
+ * Handles admin operations
+ */
+
+import api from './api';
+
+const adminService = {
   /**
    * Get dashboard stats
    */

@@ -1,3 +1,17 @@
+/**
+ * Admin Controller
+ * 
+ * HANDLES:
+ * - Organizer account management (create, disable, remove)
+ * - Password reset requests (Tier B feature)
+ * - System-wide analytics
+ * 
+ * SECURITY:
+ * - All routes require admin role
+ * - Auto-generates secure passwords for organizers
+ * - Audit logging for sensitive operations
+ */
+
 import User from '../models/User.js';
 import Event from '../models/Event.js';
 import Registration from '../models/Registration.js';
@@ -5,6 +19,30 @@ import { asyncHandler, AppError } from '../middleware/errorHandler.js';
 import { sendOrganizerCredentials } from '../utils/email.js';
 import crypto from 'crypto';
 import PasswordReset from '../models/PasswordReset.js';
+
+/**
+ * Generate random password
+ */
+const generatePassword = (length = 12) => {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789@#$%';
+  let password = '';
+  for (let i = 0; i < length; i++) {
+    password += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return password;
+};
+
+/**
+ * @desc    Create new organizer account
+ * @route   POST /api/admin/organizers
+ * @access  Private (Admin)
+ * 
+ * WORKFLOW:
+ * 1. Validate organizer details
+ * 2. Generate login email and password
+ * 3. Create account
+ * 4. Send credentials via email
+ */
 export const createOrganizer = asyncHandler(async (req, res, next) => {
   const { organizerName, category, description, contactEmail } = req.body;
   
@@ -269,35 +307,31 @@ export const resetOrganizerPassword = asyncHandler(async (req, res, next) => {
     throw new AppError('Organizer not found', 404);
   }
   
-  // Generate new password and save it. If saving fails, return an error so admin sees why.
+  // Generate new password
   const newPassword = generatePassword();
   organizer.password = newPassword;
   organizer.passwordResetRequested = false;
-  try {
-    await organizer.save();
-  } catch (saveErr) {
-    console.error('Failed to save new organizer password:', saveErr);
-    return res.status(500).json({ success: false, message: 'Failed to update organizer password', error: saveErr.message });
-  }
+  await organizer.save();
   
   // Send new credentials
-  // Fire-and-forget sending: ensure password is changed even if email fails.
-  // Attach a rejection handler so unhandled rejections do not crash the process.
   try {
-    sendOrganizerCredentials(organizer.email, newPassword, organizer.organizerName, organizer.contactEmail)
-      .catch(emailError => console.error('Failed to send new credentials (async):', emailError));
+  await sendOrganizerCredentials(organizer.email, newPassword, organizer.organizerName, organizer.contactEmail);
   } catch (emailError) {
-    console.error('Failed to initiate sending new credentials:', emailError);
+    console.error('Failed to send new credentials:', emailError);
   }
   
-  // Record in password reset history (non-blocking)
-  PasswordReset.create({
-    organizer: organizer._id,
-    requestedBy: 'admin',
-    status: 'Approved',
-    temporaryPassword: newPassword,
-    actionedAt: new Date()
-  }).catch(err => console.error('Failed to record password reset history:', err));
+  // Record in password reset history
+  try {
+    await PasswordReset.create({
+      organizer: organizer._id,
+      requestedBy: 'admin',
+      status: 'Approved',
+      temporaryPassword: newPassword,
+      actionedAt: new Date()
+    });
+  } catch (err) {
+    console.error('Failed to record password reset history:', err);
+  }
 
   res.status(200).json({
     success: true,
@@ -329,12 +363,11 @@ export const actionPasswordResetRequest = asyncHandler(async (req, res, next) =>
     organizer.passwordResetRequested = false;
     await organizer.save();
 
-    // send credentials to organizer (async, do not block approval)
+    // send credentials to organizer
     try {
-      sendOrganizerCredentials(organizer.email, newPassword, organizer.organizerName, organizer.contactEmail)
-        .catch(emailError => console.error('Failed to send approved credentials (async):', emailError));
+  await sendOrganizerCredentials(organizer.email, newPassword, organizer.organizerName, organizer.contactEmail);
     } catch (emailError) {
-      console.error('Failed to initiate sending approved credentials:', emailError);
+      console.error('Failed to send approved credentials:', emailError);
     }
 
     reqDoc.status = 'Approved';

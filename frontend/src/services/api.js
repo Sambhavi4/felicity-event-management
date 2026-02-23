@@ -9,7 +9,16 @@
  * - Response/error interceptors
  * - Token refresh handling
  */
-  timeout: 30000 // 30 second timeout (payment actions & file uploads need more time)
+
+import axios from 'axios';
+
+// Create axios instance with defaults
+const api = axios.create({
+  baseURL: import.meta.env.VITE_API_URL || '/api',
+  headers: {
+    'Content-Type': 'application/json'
+  },
+  timeout: 10000 // 10 second timeout
 });
 
 /**
@@ -79,23 +88,5 @@ api.interceptors.response.use(
     return Promise.reject(error);
   }
 );
-
-/**
- * Resolve an upload path (e.g. /uploads/file.jpg) to a full URL.
- * In development the Vite proxy handles /uploads, but in production
- * the frontend and backend are on different domains so we need the
- * full backend URL.
- */
-export const getUploadUrl = (path) => {
-  if (!path) return '';
-  if (path.startsWith('http')) return path; // already absolute
-  const apiUrl = import.meta.env.VITE_API_URL || '/api';
-  if (apiUrl.startsWith('http')) {
-    // Strip trailing /api to get the backend origin
-    return apiUrl.replace(/\/api\/?$/, '') + path;
-  }
-  // Relative — works in dev with Vite proxy
-  return path;
-};
 
 export default api;
