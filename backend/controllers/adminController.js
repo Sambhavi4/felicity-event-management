@@ -307,11 +307,16 @@ export const resetOrganizerPassword = asyncHandler(async (req, res, next) => {
     throw new AppError('Organizer not found', 404);
   }
   
-  // Generate new password
+  // Generate new password and save it. If saving fails, return an error so admin sees why.
   const newPassword = generatePassword();
   organizer.password = newPassword;
   organizer.passwordResetRequested = false;
-  await organizer.save();
+  try {
+    await organizer.save();
+  } catch (saveErr) {
+    console.error('Failed to save new organizer password:', saveErr);
+    return res.status(500).json({ success: false, message: 'Failed to update organizer password', error: saveErr.message });
+  }
   
   // Send new credentials
   // Fire-and-forget sending: ensure password is changed even if email fails.
@@ -323,18 +328,14 @@ export const resetOrganizerPassword = asyncHandler(async (req, res, next) => {
     console.error('Failed to initiate sending new credentials:', emailError);
   }
   
-  // Record in password reset history
-  try {
-    await PasswordReset.create({
-      organizer: organizer._id,
-      requestedBy: 'admin',
-      status: 'Approved',
-      temporaryPassword: newPassword,
-      actionedAt: new Date()
-    });
-  } catch (err) {
-    console.error('Failed to record password reset history:', err);
-  }
+  // Record in password reset history (non-blocking)
+  PasswordReset.create({
+    organizer: organizer._id,
+    requestedBy: 'admin',
+    status: 'Approved',
+    temporaryPassword: newPassword,
+    actionedAt: new Date()
+  }).catch(err => console.error('Failed to record password reset history:', err));
 
   res.status(200).json({
     success: true,
