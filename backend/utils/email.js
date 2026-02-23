@@ -1,17 +1,3 @@
-/**
- * Email Utility
- * 
- * USING NODEMAILER:
- * - Most popular Node.js email library
- * - Supports multiple transports (SMTP, Gmail, SendGrid, etc.)
- * - Easy to switch providers in production
- * 
- * TEMPLATE APPROACH:
- * - HTML emails with inline styles (for email client compatibility)
- * - Functions for each email type (registration, ticket, etc.)
- * - Easy to customize and extend
- */
-
 import nodemailer from 'nodemailer';
 
 // Singleton transporter and state so we reuse connections and avoid per-message verify

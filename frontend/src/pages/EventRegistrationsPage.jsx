@@ -157,7 +157,8 @@ const EventRegistrationsPage = () => {
       if (res.data.duplicate) {
         setScanResult({ ok: false, duplicate: true, message: '⚠️ Duplicate scan — ' + res.data.message });
         toast.error('Already scanned');
-      } else if (res.data.success) {
+      } else if (res.data.success && res.data.registration?.status === 'attended') {
+        // Only treat as success when backend explicitly marked status as 'attended'
         const p = res.data.registration?.participant;
         const name = p ? `${p.firstName} ${p.lastName}` : 'Participant';
         setScanResult({ ok: true, message: `✅ Attendance marked for ${name}` });

@@ -1,17 +1,3 @@
-/**
- * Admin Controller
- * 
- * HANDLES:
- * - Organizer account management (create, disable, remove)
- * - Password reset requests (Tier B feature)
- * - System-wide analytics
- * 
- * SECURITY:
- * - All routes require admin role
- * - Auto-generates secure passwords for organizers
- * - Audit logging for sensitive operations
- */
-
 import User from '../models/User.js';
 import Event from '../models/Event.js';
 import Registration from '../models/Registration.js';
@@ -19,30 +5,6 @@ import { asyncHandler, AppError } from '../middleware/errorHandler.js';
 import { sendOrganizerCredentials } from '../utils/email.js';
 import crypto from 'crypto';
 import PasswordReset from '../models/PasswordReset.js';
-
-/**
- * Generate random password
- */
-const generatePassword = (length = 12) => {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789@#$%';
-  let password = '';
-  for (let i = 0; i < length; i++) {
-    password += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return password;
-};
-
-/**
- * @desc    Create new organizer account
- * @route   POST /api/admin/organizers
- * @access  Private (Admin)
- * 
- * WORKFLOW:
- * 1. Validate organizer details
- * 2. Generate login email and password
- * 3. Create account
- * 4. Send credentials via email
- */
 export const createOrganizer = asyncHandler(async (req, res, next) => {
   const { organizerName, category, description, contactEmail } = req.body;
   

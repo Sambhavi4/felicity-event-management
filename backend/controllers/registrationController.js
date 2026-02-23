@@ -1,37 +1,9 @@
-/**
- * Registration Controller
- * 
- * HANDLES:
- * - Event registration (normal events)
- * - Merchandise purchase
- * - Ticket generation with QR
- * - Participant history
- * - Attendance marking
- * 
- * WORKFLOWS:
- * Normal Event: Register → Confirm → Generate Ticket → Email
- * Merchandise: Select Variant → Check Stock → Purchase → Decrement Stock → Ticket → Email
- */
-
 import Registration from '../models/Registration.js';
 import Event from '../models/Event.js';
 import User from '../models/User.js';
 import { asyncHandler, AppError } from '../middleware/errorHandler.js';
 import { generateTicketQR } from '../utils/qrcode.js';
 import sendEmail, { sendRegistrationEmail, sendMerchandiseEmail } from '../utils/email.js';
-
-/**
- * @desc    Register for a normal event
- * @route   POST /api/registrations/event/:eventId
- * @access  Private (Participant)
- * 
- * VALIDATION:
- * - Event exists and is published
- * - Registration is open (before deadline)
- * - Limit not reached
- * - Eligibility check
- * - Not already registered
- */
 export const registerForEvent = asyncHandler(async (req, res, next) => {
   const { eventId } = req.params;
   const { formResponses } = req.body;

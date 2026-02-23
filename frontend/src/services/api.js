@@ -9,15 +9,6 @@
  * - Response/error interceptors
  * - Token refresh handling
  */
-
-import axios from 'axios';
-
-// Create axios instance with defaults
-const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || '/api',
-  headers: {
-    'Content-Type': 'application/json'
-  },
   timeout: 30000 // 30 second timeout (payment actions & file uploads need more time)
 });
 

@@ -1,33 +1,7 @@
-/**
- * Event Controller
- * 
- * HANDLES:
- * - Event CRUD operations
- * - Event search and filtering
- * - Trending events
- * - Event analytics
- * 
- * ACCESS CONTROL:
- * - Create/Edit/Delete: Organizers (own events only)
- * - View: Public (published events) or Organizer (own drafts)
- * - Analytics: Organizer (own events)
- */
-
 import Event from '../models/Event.js';
 import Registration from '../models/Registration.js';
 import User from '../models/User.js';
 import { asyncHandler, AppError } from '../middleware/errorHandler.js';
-
-/**
- * @desc    Create new event
- * @route   POST /api/events
- * @access  Private (Organizer)
- * 
- * WORKFLOW:
- * 1. Create event in 'draft' status
- * 2. Organizer can edit freely
- * 3. Publish when ready
- */
 export const createEvent = asyncHandler(async (req, res, next) => {
   // Add organizer from authenticated user
   req.body.organizer = req.user.id;
