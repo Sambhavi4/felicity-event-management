@@ -1,0 +1,20 @@
+[build]
+  base    = "frontend"
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+# Proxy /uploads to Render backend (payment proofs, avatars, etc.)
+[[redirects]]
+  from   = "/uploads/*"
+  to     = "https://felicity-backend-api.onrender.com/uploads/:splat"
+  status = 200
+  force  = true
+
+# SPA catch-all — must be last
+[[redirects]]
+  from   = "/*"
+  to     = "/index.html"
+  status = 200
