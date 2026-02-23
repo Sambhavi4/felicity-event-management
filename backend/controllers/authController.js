@@ -1,18 +1,4 @@
-/**
- * Authentication Controller
- * 
- * HANDLES:
- * - Participant registration (IIIT and non-IIIT)
- * - User login (all roles)
- * - Token refresh
- * - Password change
- * 
- * SECURITY MEASURES:
- * - Email domain validation for IIIT students
- * - Password hashing (handled in model)
- * - JWT token generation
- * - Role-based response data
- */
+
 
 import User from '../models/User.js';
 import { asyncHandler, AppError } from '../middleware/errorHandler.js';

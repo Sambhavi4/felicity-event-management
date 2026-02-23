@@ -1,17 +1,4 @@
-/**
- * Registration Controller
- * 
- * HANDLES:
- * - Event registration (normal events)
- * - Merchandise purchase
- * - Ticket generation with QR
- * - Participant history
- * - Attendance marking
- * 
- * WORKFLOWS:
- * Normal Event: Register → Confirm → Generate Ticket → Email
- * Merchandise: Select Variant → Check Stock → Purchase → Decrement Stock → Ticket → Email
- */
+
 
 import Registration from '../models/Registration.js';
 import Event from '../models/Event.js';

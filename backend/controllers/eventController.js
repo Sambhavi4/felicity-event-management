@@ -1,17 +1,3 @@
-/**
- * Event Controller
- * 
- * HANDLES:
- * - Event CRUD operations
- * - Event search and filtering
- * - Trending events
- * - Event analytics
- * 
- * ACCESS CONTROL:
- * - Create/Edit/Delete: Organizers (own events only)
- * - View: Public (published events) or Organizer (own drafts)
- * - Analytics: Organizer (own events)
- */
 
 import Event from '../models/Event.js';
 import Registration from '../models/Registration.js';

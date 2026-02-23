@@ -1,16 +1,4 @@
-/**
- * Admin Controller
- * 
- * HANDLES:
- * - Organizer account management (create, disable, remove)
- * - Password reset requests (Tier B feature)
- * - System-wide analytics
- * 
- * SECURITY:
- * - All routes require admin role
- * - Auto-generates secure passwords for organizers
- * - Audit logging for sensitive operations
- */
+
 
 import User from '../models/User.js';
 import Event from '../models/Event.js';
@@ -314,10 +302,13 @@ export const resetOrganizerPassword = asyncHandler(async (req, res, next) => {
   await organizer.save();
   
   // Send new credentials
+  // Fire-and-forget sending: ensure password is changed even if email fails.
+  // Attach a rejection handler so unhandled rejections do not crash the process.
   try {
-  await sendOrganizerCredentials(organizer.email, newPassword, organizer.organizerName, organizer.contactEmail);
+    sendOrganizerCredentials(organizer.email, newPassword, organizer.organizerName, organizer.contactEmail)
+      .catch(emailError => console.error('Failed to send new credentials (async):', emailError));
   } catch (emailError) {
-    console.error('Failed to send new credentials:', emailError);
+    console.error('Failed to initiate sending new credentials:', emailError);
   }
   
   // Record in password reset history
@@ -363,11 +354,12 @@ export const actionPasswordResetRequest = asyncHandler(async (req, res, next) =>
     organizer.passwordResetRequested = false;
     await organizer.save();
 
-    // send credentials to organizer
+    // send credentials to organizer (async, do not block approval)
     try {
-  await sendOrganizerCredentials(organizer.email, newPassword, organizer.organizerName, organizer.contactEmail);
+      sendOrganizerCredentials(organizer.email, newPassword, organizer.organizerName, organizer.contactEmail)
+        .catch(emailError => console.error('Failed to send approved credentials (async):', emailError));
     } catch (emailError) {
-      console.error('Failed to send approved credentials:', emailError);
+      console.error('Failed to initiate sending approved credentials:', emailError);
     }
 
     reqDoc.status = 'Approved';

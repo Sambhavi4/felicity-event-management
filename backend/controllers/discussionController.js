@@ -1,8 +1,4 @@
-/**
- * Discussion Controller (Tier B Feature)
- * 
- * Real-time discussion forum on Event Details page.
- */
+
 
 import Message from '../models/Message.js';
 import Registration from '../models/Registration.js';
